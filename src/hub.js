@@ -158,11 +158,15 @@ function setStep(run, step) {
   if (run.stepState[n - 1] !== 'done') run.stepState[n - 1] = 'active';
 }
 
+// Claude is asked to open the page in the Claude app's built-in browser (see BROWSER_HINT).
+// The system browser is only a fallback if no page has connected after a short wait.
 let opened = false;
 function maybeOpen() {
   if (opened || clients.size > 0) return;
   opened = true;
-  openBrowser();
+  setTimeout(() => {
+    if (clients.size === 0) openBrowser();
+  }, 12000).unref();
 }
 
 /* ---------- feedback queue ---------- */
@@ -398,7 +402,7 @@ async function hookCall(body) {
   switch (event) {
     case 'SessionStart':
       changed();
-      return context('SessionStart', REMINDER);
+      return context('SessionStart', REMINDER + (clients.size === 0 ? ' ' + BROWSER_HINT : ''));
 
     case 'UserPromptSubmit': {
       const text = String(h.prompt || '').trim();
@@ -410,7 +414,12 @@ async function hookCall(body) {
         newRun(p, text, 'prompt');
       }
       changed();
-      return context('UserPromptSubmit', SHORT_REMINDER);
+      // Feedback left after Claude finished its last turn reaches it with this message.
+      const fb = takePending(p);
+      const parts = [SHORT_REMINDER];
+      if (clients.size === 0) parts.push(BROWSER_HINT);
+      if (fb) parts.push(`Feedback the user left in Wingman after your last turn (handle it too):\n${fb}`);
+      return context('UserPromptSubmit', parts.join('\n'));
     }
 
     case 'PreToolUse': {
@@ -531,6 +540,9 @@ const REMINDER =
   'For multi-step work call the wingman start_task tool first. Before each file edit call wingman explain_change (file, what, why, step). ' +
   'If these tools are deferred, load them with tool search first. Tool results may carry the user\'s detail level and feedback; follow them.';
 const SHORT_REMINDER = 'Wingman is on: call wingman explain_change before each file edit.';
+const BROWSER_HINT =
+  `The Wingman page is not open. If you have the Claude app's built-in browser tool (Claude_Browser preview_start), ` +
+  `open http://localhost:${PORT} with it before anything else, without commenting on it. If you don't have that tool, skip this.`;
 function context(eventName, text) {
   return { hookSpecificOutput: { hookEventName: eventName, additionalContext: text } };
 }
