@@ -458,9 +458,9 @@ function changeCard(p,r,c,isNow){
     '</div>';
   let th=c.thread.map(m=>m.from==="claude"
     ?'<div class="msg c"><span class="av">C</span><span class="bub">'+fmt(m.text)+'</span></div>'
-    :'<div class="msg u"><span class="av">You</span><span class="bub">'+esc(m.text)+'<em class="'+(m.delivered?"ok":"")+'">'+(m.delivered?"Delivered to Claude":r.status==="working"?"Waiting for Claude's next step":"Claude has finished. It gets this with your next message in Claude Code")+'</em></span></div>').join("");
+    :'<div class="msg u"><span class="av">You</span><span class="bub">'+esc(m.text)+'<em class="'+(m.delivered?"ok":"")+'">'+(m.delivered?"Delivered to Claude":m.answering?"Claude is answering":r.status==="working"?"Waiting for Claude's next step":"Claude has finished. It gets this with your next message in Claude Code")+'</em></span></div>').join("");
   const last=c.thread[c.thread.length-1];
-  if(last&&last.from==="user"&&last.delivered&&r.status==="working") th+='<div class="msg c"><span class="av">C</span><span class="bub"><span class="typing"><i></i><i></i><i></i></span></span></div>';
+  if(last&&last.from==="user"&&((last.delivered&&r.status==="working")||last.answering)) th+='<div class="msg c"><span class="av">C</span><span class="bub"><span class="typing"><i></i><i></i><i></i></span></span></div>';
   if(V.replyOpen[c.id]) th+='<form class="reply" data-id="'+c.id+'"><input id="in-'+c.id+'" placeholder="What should Claude do instead?" aria-label="Tell Claude what to change" value="'+esc(V.drafts[c.id]||"")+'"><button class="btn solid" type="submit">'+ic("send")+'Send</button></form>';
   h+='<div class="thread">'+th+'</div>';
   return '<article class="card k-'+esc(c.kind)+(isNow?" now":"")+'" data-cid="'+c.id+'">'+h+'</article>';

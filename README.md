@@ -63,7 +63,7 @@ Claude Code hooks ── real diffs, prompts ───► ┘          ▲      
 |---|---|
 | Pause Claude | The next tool call waits (up to 10 minutes) until you resume. |
 | Not like this | Your note is delivered before Claude's next edit or command, which is held back until Claude has read it. |
-| Why this way? | Claude answers on the card at its next step. |
+| Why this way? | Claude answers on the card at its next step. If Claude has already finished, Wingman asks a short background copy of the same conversation (read-only, not saved), and the answer appears on the card. |
 | Simpler | Claude rewrites that card's explanation in plainer words. |
 | Question cards | Claude waits for your choice. |
 | Explain changes as | New explanations are written at that level. |
@@ -84,3 +84,5 @@ Without hooks (Claude Desktop, Cursor and others), you still get explained cards
 ## Cost
 
 Explanations add roughly 150–250 tokens per explained change, plus about 1,000 tokens of tool definitions (usually cached). For a typical 20-edit task that's about 3–5% on top of the session. The page shows an estimate per run.
+
+A "why" question asked after Claude has finished starts a short background Claude request that resumes the conversation, so it uses the same usage as one more message in that session (mostly cached if the session was recent).

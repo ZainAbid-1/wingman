@@ -8,6 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 const { PORT, HOST, VERSION, openBrowser } = require('./shared');
 
 const LEVELS = [
@@ -398,6 +399,10 @@ async function hookCall(body) {
   const p = project(h.cwd);
   const tool = h.tool_name || '';
   const isOurs = WINGMAN_TOOL.test(tool);
+  if (body.claude) p.claude = String(body.claude);
+  if (h.session_id) p.session = String(h.session_id);
+  const cur = working(p);
+  if (cur && !cur.session && h.session_id) cur.session = String(h.session_id);
 
   switch (event) {
     case 'SessionStart':
@@ -406,12 +411,12 @@ async function hookCall(body) {
 
     case 'UserPromptSubmit': {
       const text = String(h.prompt || '').trim();
-      if (!text) return {};
+      if (!text || text.startsWith(SIDE_TAG)) return {};
       const run = working(p);
       if (run && now() - p.lastToolAt < 20000) {
         run.items.push({ id: id('m'), type: 'message', text, at: now() });
       } else {
-        newRun(p, text, 'prompt');
+        newRun(p, text, 'prompt').session = String(h.session_id || '');
       }
       changed();
       // Feedback left after Claude finished its last turn reaches it with this message.
@@ -575,7 +580,7 @@ function uiCall(b) {
       break;
     }
     case 'feedback': {
-      const { card } = findCard(p, b.cardId);
+      const { run: cardRun, card } = findCard(p, b.cardId);
       if (!card) return { error: 'Unknown card' };
       const where = `card ${card.id}${card.file ? ` (${card.file})` : ''}`;
       if (b.kind === 'ok') {
@@ -591,6 +596,7 @@ function uiCall(b) {
       const msg = { from: 'user', kind: b.kind, text, delivered: false, at: now() };
       card.thread.push(msg);
       if (b.kind === 'why') {
+        if (cardRun && cardRun.status !== 'working' && !working(p) && answerLater(p, cardRun, card, msg)) break;
         queue(p, `About ${where}, the user asks: "${text}". Answer in one or two sentences with explain_change, card_id "${card.id}", reply.`, msg);
       } else {
         queue(p, `The user does not want ${where} as it is: "${text}". Change your approach accordingly, and reply briefly with explain_change, card_id "${card.id}", reply.`, msg);
@@ -608,6 +614,67 @@ function uiCall(b) {
   }
   changed();
   return {};
+}
+
+/* ---------- answers after Claude has finished ---------- */
+// Claude only reads Wingman between its own steps. Once it has finished, a "why"
+// question is answered by a short background copy of the same conversation
+// (--fork-session, read-only tools, nothing saved). If that can't run, the
+// question waits for the user's next message instead.
+const DROP_ENV = /^(CLAUDECODE|CLAUDE_PID|CLAUDE_CODE_(SESSION_ID|HOST_SESSION_ID|CHILD_SESSION|MESSAGING_\w+|TERMINAL_MCP_TOOLS|ENTRYPOINT|SESSION_ATTENDED))$/;
+const SIDE_TAG = '[Wingman side answer]';
+function answerLater(p, run, card, msg) {
+  const session = run.session || p.session;
+  if (!session || !p.claude || !fs.existsSync(p.claude)) return false;
+  const l = LEVELS[state.level];
+  const prompt =
+    `${SIDE_TAG} You have finished. The user is reviewing your change to ${card.file || 'the code'}` +
+    (card.what ? ` ("${card.what}")` : '') +
+    ` on the Wingman page and asks: "${msg.text}". Answer in one to three sentences, ${l.guide}. ` +
+    'Reply with the answer only. Do not change anything.';
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) if (!DROP_ENV.test(k)) env[k] = v;
+  env.WINGMAN_OFF = '1';
+  let child;
+  try {
+    child = spawn(
+      p.claude,
+      ['-p', prompt, '--resume', session, '--fork-session', '--no-session-persistence', '--output-format', 'json', '--strict-mcp-config', '--tools', 'Read,Grep,Glob'],
+      { cwd: p.cwd, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+  } catch {
+    return false;
+  }
+  msg.answering = true;
+  let out = '';
+  child.stdout.on('data', (c) => (out += c));
+  child.stderr.on('data', () => {});
+  const timer = setTimeout(() => child.kill(), 180000);
+  let finished = false;
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    msg.answering = false;
+    let text = '';
+    try {
+      const r = JSON.parse(out);
+      if (!r.is_error) text = String(r.result || '').trim();
+    } catch {
+      /* not JSON: treat as failed */
+    }
+    if (text) {
+      msg.delivered = true;
+      card.thread.push({ from: 'claude', text, at: now() });
+      run.tokens += Math.ceil((prompt.length + text.length) / 4);
+    } else {
+      queue(p, `About card ${card.id}${card.file ? ` (${card.file})` : ''}, the user asks: "${msg.text}". Answer in one or two sentences with explain_change, card_id "${card.id}", reply.`, msg);
+    }
+    changed();
+  };
+  child.on('error', done);
+  child.on('close', done);
+  return true;
 }
 
 /* ---------- http ---------- */
