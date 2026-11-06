@@ -265,15 +265,17 @@ function describe(tool, input) {
 }
 
 /* ---------- MCP tool calls ---------- */
-function levelNote(p) {
-  if (p.lastLevelSent === state.level) return '';
-  p.lastLevelSent = state.level;
+// Tell each Claude session (one MCP process each) the level once, and again whenever it changes.
+const levelSent = new Map();
+function levelNote(session) {
+  if (levelSent.get(session) === state.level) return '';
+  levelSent.set(session, state.level);
   const l = LEVELS[state.level];
   return `Explanation level is now "${l.name}": ${l.guide}.`;
 }
 function reply(p, run, args, main) {
   const parts = [main];
-  const lv = levelNote(p);
+  const lv = levelNote((args && args.__session) || p.key);
   if (lv) parts.push(lv);
   const fb = takePending(p);
   if (fb) parts.push(`Feedback from the user (handle before continuing):\n${fb}`);
@@ -284,7 +286,9 @@ function reply(p, run, args, main) {
 
 async function mcpCall(body) {
   const p = project(body.cwd);
-  const a = body.args || {};
+  const a = Object.assign({}, body.args);
+  // Hidden from the token estimate; tells reply() which Claude session is asking.
+  Object.defineProperty(a, '__session', { value: body.session || p.key, enumerable: false });
   switch (body.tool) {
     case 'start_task': {
       let run = working(p);

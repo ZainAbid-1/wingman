@@ -86,6 +86,9 @@ const TOOLS = [
   },
 ];
 
+// One id per Claude session, so the hub knows which sessions already heard the detail level.
+const SESSION = `${process.pid}-${Date.now().toString(36)}`;
+
 function write(msg) {
   process.stdout.write(JSON.stringify(msg) + '\n');
 }
@@ -93,7 +96,7 @@ function write(msg) {
 async function callTool(name, args) {
   if (!TOOLS.some((t) => t.name === name)) throw new Error(`Unknown tool: ${name}`);
   await ensureHub();
-  const r = await request('POST', '/api/mcp', { cwd: process.cwd(), tool: name, args: args || {} }, name === 'ask_user' ? 620000 : 10000);
+  const r = await request('POST', '/api/mcp', { cwd: process.cwd(), session: SESSION, tool: name, args: args || {} }, name === 'ask_user' ? 620000 : 10000);
   if (r.error) throw new Error(r.error);
   return r.text || 'OK';
 }
