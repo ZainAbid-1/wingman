@@ -1,0 +1,31 @@
+{
+  "name": "claude-code-wingman",
+  "version": "0.1.0",
+  "description": "A live page that explains what Claude is changing in your code, and why, while it works.",
+  "type": "commonjs",
+  "bin": {
+    "wingman": "bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "public",
+    "hooks",
+    "commands",
+    ".claude-plugin",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "claude-code",
+    "hooks",
+    "explain",
+    "diff"
+  ],
+  "license": "MIT"
+}

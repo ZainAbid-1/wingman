@@ -1,0 +1,18 @@
+{
+  "name": "wingman",
+  "owner": {
+    "name": "Wingman"
+  },
+  "metadata": {
+    "description": "Wingman for Claude Code: see what Claude changes, and why, while it works."
+  },
+  "plugins": [
+    {
+      "name": "wingman",
+      "source": "./",
+      "description": "A live page that explains what Claude is changing in your code, and why, while it works. Pause Claude, ask why, or redirect it mid-task.",
+      "version": "0.1.0",
+      "category": "productivity"
+    }
+  ]
+}
