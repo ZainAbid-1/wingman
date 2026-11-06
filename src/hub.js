@@ -669,6 +669,19 @@ function main() {
         }
       }
       if (req.method === 'POST' && url.pathname === '/api/ui') return send(res, 200, uiCall(await readBody(req)));
+      if (req.method === 'POST' && url.pathname === '/api/shutdown') {
+        // A newer Wingman is taking over. Save state first; open pages reconnect to the new hub.
+        clearTimeout(saveTimer);
+        try {
+          fs.mkdirSync(STORE_DIR, { recursive: true });
+          fs.writeFileSync(STORE, JSON.stringify(state));
+        } catch {
+          /* not fatal */
+        }
+        send(res, 200, { ok: true });
+        setTimeout(() => process.exit(0), 100);
+        return;
+      }
       send(res, 404, { error: 'Not found' });
     } catch (e) {
       send(res, 500, { error: e.message });

@@ -40,18 +40,33 @@ function request(method, urlPath, body, timeoutMs = 5000) {
   });
 }
 
-async function ping() {
+async function hubVersion() {
   try {
     const r = await request('GET', '/api/ping', undefined, 800);
-    return r && r.ok === true;
+    return r && r.ok === true ? r.version || '0.0.0' : null;
   } catch {
-    return false;
+    return null;
   }
+}
+async function ping() {
+  return (await hubVersion()) !== null;
+}
+function older(a, b) {
+  const x = String(a).split('.').map(Number);
+  const y = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0);
+  return false;
 }
 
 // Start the hub as a detached background process if it isn't running yet.
+// A hub from an older Wingman is asked to exit so this version takes over.
 async function ensureHub() {
-  if (await ping()) return true;
+  const running = await hubVersion();
+  if (running && !older(running, VERSION)) return true;
+  if (running) {
+    await request('POST', '/api/shutdown', {}, 1000).catch(() => {});
+    for (let i = 0; i < 20 && (await ping()); i++) await new Promise((r) => setTimeout(r, 100));
+  }
   const cli = path.join(__dirname, '..', 'bin', 'cli.js');
   const child = spawn(process.execPath, [cli, 'hub'], {
     detached: true,
