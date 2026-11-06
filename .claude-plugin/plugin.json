@@ -2,6 +2,12 @@
   "name": "wingman",
   "version": "0.1.0",
   "description": "A live page that explains what Claude is changing in your code, and why, while it works. Pause Claude, ask why, or redirect it mid-task.",
+  "author": {
+    "name": "Zain Abid",
+    "url": "https://github.com/ZainAbid-1"
+  },
+  "homepage": "https://github.com/ZainAbid-1/wingman",
+  "repository": "https://github.com/ZainAbid-1/wingman",
   "keywords": ["explain", "diff", "live", "pause", "feedback", "learning"],
   "license": "MIT",
   "mcpServers": {

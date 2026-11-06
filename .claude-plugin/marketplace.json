@@ -1,7 +1,8 @@
 {
   "name": "wingman",
   "owner": {
-    "name": "Wingman"
+    "name": "Zain Abid",
+    "url": "https://github.com/ZainAbid-1"
   },
   "metadata": {
     "description": "Wingman for Claude Code: see what Claude changes, and why, while it works."

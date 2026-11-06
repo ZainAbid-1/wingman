@@ -11,13 +11,13 @@ A live page that explains what Claude is changing in your code, and why, while i
 Wingman is a Claude Code plugin. In Claude Code, run:
 
 ```
-/plugin install wingman --marketplace <owner>/wingman
+/plugin install wingman --marketplace ZainAbid-1/wingman
 ```
 
-Replace `<owner>/wingman` with the GitHub repository that holds this folder. On Claude Code older than 2.1.275, add the marketplace first:
+On Claude Code older than 2.1.275, add the marketplace first:
 
 ```
-/plugin marketplace add <owner>/wingman
+/plugin marketplace add ZainAbid-1/wingman
 /plugin install wingman@wingman
 ```
 

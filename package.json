@@ -27,5 +27,11 @@
     "explain",
     "diff"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "author": "Zain Abid",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ZainAbid-1/wingman.git"
+  },
+  "homepage": "https://github.com/ZainAbid-1/wingman"
 }
