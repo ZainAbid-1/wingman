@@ -33,7 +33,13 @@ button:focus-visible,input:focus-visible,.term:focus-visible{outline:2px solid v
 code{font-family:var(--f-mono);font-size:.86em;background:var(--sunk);padding:.08em .38em;border-radius:5px;color:var(--ink)}
 svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
-.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+/* Top bar: a warm orange tint over the page colour, with a fading orange hairline and glow. */
+.top{position:sticky;top:0;z-index:5;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,color-mix(in srgb,var(--bg) 88%,transparent)),color-mix(in srgb,var(--accent) 4%,color-mix(in srgb,var(--bg) 88%,transparent)));
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid color-mix(in srgb,var(--accent) 14%,var(--line))}
+.top::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 55%,transparent) 30%,color-mix(in srgb,var(--accent) 55%,transparent) 70%,transparent);
+  box-shadow:0 0 18px 1px color-mix(in srgb,var(--accent) 22%,transparent)}
 ::selection{background:color-mix(in srgb,var(--accent) 40%,transparent)}
 .top-in{max-width:1240px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
 .brand,.setwrap{flex:none}

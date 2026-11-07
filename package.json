@@ -1,6 +1,6 @@
 {
   "name": "claude-code-wingman",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "A live page that explains what Claude is changing in your code, and why, while it works.",
   "type": "commonjs",
   "scripts": {
