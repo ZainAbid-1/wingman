@@ -35,20 +35,21 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 
 .top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 ::selection{background:color-mix(in srgb,var(--accent) 40%,transparent)}
-.top-in{max-width:1240px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.top-in{max-width:1240px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+.brand,.setwrap,#pauseBtn{flex:none}
 .brand{display:flex;align-items:center;gap:11px;font-family:var(--f-display);font-weight:600;font-size:23px;letter-spacing:-.01em}
 .critter{display:block;fill:var(--accent);fill-rule:evenodd;shape-rendering:crispEdges;flex:none}
 .brand .critter{width:30px;height:20px;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 45%,transparent))}
 .live .brand .critter{animation:hop .9s steps(2,jump-none) infinite}
 @keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-.tabs{display:flex;gap:3px;background:var(--panel);border:1px solid var(--line);padding:3px;border-radius:11px;min-width:0;overflow-x:auto;max-width:100%}
+.tabs{display:flex;gap:3px;background:var(--panel);border:1px solid var(--line);padding:3px;border-radius:11px;min-width:0;overflow-x:auto;max-width:100%;flex:0 1 auto;scrollbar-width:none}
 .tab{border:0;background:transparent;padding:6px 11px;border-radius:8px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px;color:var(--ink-2);white-space:nowrap}
 .tab.on{background:var(--raise);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2)}
 .tab .sd{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
 .tab .sd.live{background:var(--live);animation:ping 1.6s infinite}
 .tab .sd.wait{background:var(--warn-ink)}
 .spacer{flex:1}
-.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);min-width:0;max-width:340px}
+.status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);min-width:0;max-width:340px;flex:0 1 auto}
 .status span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
 .status.work .dot{background:var(--live);animation:ping 1.6s infinite}
@@ -244,6 +245,10 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .lv small{font-size:12px;color:var(--ink-3)}
 .pop .foot{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
 
+@media (max-width:1240px){
+  #pauseBtn .bl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  #pauseBtn{padding:7px 9px}
+}
 @media (max-width:860px){
   .wrap{grid-template-columns:minmax(0,1fr)}
   .rail{position:static;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
@@ -251,8 +256,13 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 @media (max-width:520px){
   .step,.ex,.diff,.acts,.thread,.showcode,.pending,.ask .q,.ask .opts{margin-left:0}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .top-in{flex-wrap:wrap}
   .tabs{order:3;flex-basis:100%}
-  .spacer{display:none}
+  .status span{display:none}
+  #setBtn .lvname,#setBtn .chv{display:none}
+  #setBtn{padding:7px 9px}
+  .pop{position:fixed;left:16px;right:16px;top:58px;width:auto}
+  .status{padding:9px}
   .run-h q{font-size:17px}
   .run-b{margin-left:8px;padding-left:14px}
   .by{margin-left:-25px}
@@ -421,7 +431,9 @@ function renderTop(){
   document.body.classList.toggle("live",cls==="work");
   b.disabled=!p||!V.connected;
   b.className="btn"+(p&&p.paused?" warn":"");
-  setHTML(b,p&&p.paused?ic("play")+"Resume Claude":ic("pause")+"Pause Claude");
+  const bl=p&&p.paused?"Resume Claude":"Pause Claude";
+  b.title=bl;s.title=txt;
+  setHTML(b,ic(p&&p.paused?"play":"pause")+'<span class="bl">'+bl+'</span>');
 }
 
 /* ---------- rail ---------- */
