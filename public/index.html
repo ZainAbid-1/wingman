@@ -109,6 +109,13 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .run.past .chev{padding-top:0}
 .run.past:not(.collapsed) .run-h q{-webkit-line-clamp:3;color:var(--ink)}
 .run-h:focus:not(:focus-visible){outline:none}
+.run.past.focus .run-h{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));box-shadow:var(--glow)}
+.railfor{display:flex;flex-direction:column;gap:3px;padding:2px 4px 2px}
+.railfor .lbl{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.railfor b{font-family:var(--f-display);font-weight:500;font-size:16px;line-height:1.3;color:var(--accent-ink);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.railfor .back{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line-2);background:transparent;border-radius:8px;padding:3px 9px;font-size:12px;color:var(--ink-2);margin-top:4px}
+.railfor .back:hover{background:var(--sunk);color:var(--ink)}
+.railfor .back svg{width:12px;height:12px}
 /* A run's items hang under its prompt on a timeline. */
 .run-b{margin-left:15px;padding:4px 0 6px 26px;border-left:1.5px solid var(--line-2);position:relative}
 .run-b::after{content:"";position:absolute;left:-4.5px;bottom:-2px;width:7.5px;height:7.5px;border-radius:50%;background:var(--line-2)}
@@ -442,16 +449,23 @@ function renderTop(){
 }
 
 /* ---------- rail ---------- */
+// The side panels describe the run you last opened, or the newest run.
+function railRun(p){
+  if(!p) return null;
+  const latest=p.runs[p.runs.length-1];
+  const f=V.focus&&p.runs.find(x=>x.id===V.focus);
+  return f&&f!==latest?f:latest;
+}
 function renderRail(){
   const p=current();
-  const r=p&&p.runs[p.runs.length-1];
+  const r=railRun(p);
   if(!r){setHTML($("rail"),'<section class="box"><p class="eyebrow"><span>This run</span></p><p class="muted">The plan, files and explanation cost for the current prompt show up here.</p></section>');return;}
   let plan;
   if(r.steps.length){
     const done=r.stepState.filter(s=>s==="done").length;
-    plan='<p class="eyebrow"><span>Plan · this run</span><span>'+done+' of '+r.steps.length+'</span></p><ol class="plan">'+
+    plan='<p class="eyebrow"><span>Plan</span><span>'+done+' of '+r.steps.length+'</span></p><ol class="plan">'+
       r.steps.map((s,i)=>{const st=r.stepState[i];return '<li class="'+st+'"><span class="mk">'+(st==="done"?ic("check"):st==="active"?"":i+1)+'</span>'+esc(s)+'</li>';}).join("")+'</ol>';
-  } else plan='<p class="eyebrow"><span>Plan · this run</span></p><p class="muted">Claude hasn\'t shared a plan for this prompt.</p>';
+  } else plan='<p class="eyebrow"><span>Plan</span></p><p class="muted">Claude hasn\'t shared a plan for this prompt.</p>';
   const groups={};
   Object.keys(r.files).sort().forEach(f=>{const i=f.lastIndexOf("/");const d=i<0?".":f.slice(0,i);(groups[d]=groups[d]||[]).push(f);});
   let tree="";
@@ -465,9 +479,12 @@ function renderRail(){
   });
   const changed=Object.values(r.files).filter(s=>s.adds||s.dels).length;
   $("rail").className="rail"+(r.status==="working"?" work-run":"");
-  setHTML($("rail"),'<section class="box">'+plan+'</section>'+
+  const isLatest=r===p.runs[p.runs.length-1];
+  const showing='<div class="railfor"><span class="lbl">Showing</span><b>'+(isLatest?"Latest run":esc(r.prompt||r.goal||"Untitled run"))+'</b>'+
+    (isLatest?"":'<button type="button" class="back" data-back="1">'+ic("x")+'Back to latest</button>')+'</div>';
+  setHTML($("rail"),showing+'<section class="box">'+plan+'</section>'+
     '<section class="box"><p class="eyebrow"><span>Files</span><span>'+changed+' changed</span></p>'+(tree?'<div class="tree">'+tree+'</div>':'<p class="muted">No files touched yet.</p>')+'</section>'+
-    '<section class="box"><p class="eyebrow"><span>Explanation cost · this run</span></p><div class="cost-n">≈ '+r.tokens.toLocaleString()+'<small>tokens</small></div><p class="muted">Estimated tokens Claude spent explaining its work. Diffs come from hooks and cost nothing.</p></section>');
+    '<section class="box"><p class="eyebrow"><span>Explanation cost</span></p><div class="cost-n">≈ '+r.tokens.toLocaleString()+'<small>tokens</small></div><p class="muted">Estimated tokens Claude spent explaining its work. Diffs come from hooks and cost nothing.</p></section>');
 }
 
 /* ---------- cards ---------- */
@@ -546,7 +563,8 @@ function runHTML(p,r,isLatest){
   const collapsed=V.collapsed[r.id]!=null?V.collapsed[r.id]:!isLatest;
   const prompt=r.prompt||r.goal||"Untitled run";
   let meta='<span class="pill '+cls+'">'+label+'</span><span>'+t.changes+' change'+(t.changes===1?"":"s")+'</span>'+(t.a||t.d?'<span><span class="a">+'+t.a+'</span> <span class="d">−'+t.d+'</span></span>':"")+'<span>'+dur(r.startedAt,r.status==="working"?0:r.endedAt)+'</span><span>'+clock(r.startedAt)+'</span>'+(r.about!=null?'<span class="redir">'+ic("x")+'Not like this'+(r.about?' · '+esc(r.about):'')+'</span>':'');
-  let h='<section class="run'+(isLatest?"":" past")+(collapsed?" collapsed":"")+'" data-run="'+r.id+'">'+
+  const focused=!isLatest&&!collapsed&&V.focus===r.id;
+  let h='<section class="run'+(isLatest?"":" past")+(collapsed?" collapsed":"")+(focused?" focus":"")+'" data-run="'+r.id+'">'+
     '<button class="run-h" type="button" data-toggle="'+r.id+'" aria-expanded="'+!collapsed+'"><span class="who">You</span><span class="pr"><q>'+esc(prompt)+'</q><span class="meta">'+meta+'</span></span><span class="chev">'+ic("chev")+'</span></button>';
   h+='<div class="run-b"><p class="by"><span class="cb">'+CRIT+'</span><b>Claude</b>'+(r.status==="working"?"is working":"worked on this")+'</p><div class="feed">';
   const items=r.items.slice().reverse();
@@ -609,9 +627,14 @@ function setMenu(open){$("pop").hidden=!open;$("setBtn").setAttribute("aria-expa
 $("setBtn").addEventListener("click",e=>{e.stopPropagation();setMenu($("pop").hidden);});
 document.addEventListener("click",e=>{if(!$("pop").hidden&&!e.target.closest(".setwrap"))setMenu(false);});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("pop").hidden){setMenu(false);$("setBtn").focus();}});
+$("rail").addEventListener("click",e=>{
+  if(!e.target.closest("[data-back]"))return;
+  if(V.focus)V.collapsed[V.focus]=true;
+  V.focus=null;render();
+});
 $("tabs").addEventListener("click",e=>{
   const t=e.target.closest(".tab");if(!t)return;
-  V.sel=t.dataset.key;V.pickedAt=Date.now();try{localStorage.setItem("wingman-project",V.sel);}catch(err){}
+  V.sel=t.dataset.key;V.pickedAt=Date.now();V.focus=null;try{localStorage.setItem("wingman-project",V.sel);}catch(err){}
   render();
 });
 $("pauseBtn").addEventListener("click",()=>{
@@ -621,7 +644,13 @@ $("pauseBtn").addEventListener("click",()=>{
 });
 $("main").addEventListener("click",e=>{
   const tg=e.target.closest("[data-toggle]");
-  if(tg){const id=tg.dataset.toggle;const el=tg.closest(".run");const c=!el.classList.contains("collapsed");V.collapsed[id]=c;el.classList.toggle("collapsed",c);tg.setAttribute("aria-expanded",!c);return;}
+  if(tg){
+    const id=tg.dataset.toggle;const el=tg.closest(".run");const c=!el.classList.contains("collapsed");
+    V.collapsed[id]=c;el.classList.toggle("collapsed",c);tg.setAttribute("aria-expanded",!c);
+    // Opening a run points the side panels at it; closing it sends them back to the newest run.
+    if(!c) V.focus=id; else if(V.focus===id) V.focus=null;
+    render();return;
+  }
   const o=e.target.closest("[data-ask]");
   if(o&&!o.disabled){const p=current();post({action:"answer",key:p.key,askId:o.dataset.ask,choice:o.dataset.choice});o.classList.add("pick");return;}
   const b=e.target.closest("[data-act]");if(!b||b.disabled)return;
