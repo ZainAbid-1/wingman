@@ -108,8 +108,26 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .chev svg{transition:transform .2s}
 .run.collapsed .chev svg{transform:rotate(-90deg)}
 .run.collapsed .run-b{display:none}
-.run.past .run-h{background:var(--panel);border:1px solid var(--line);padding:12px 14px}
-.run.past .run-h:hover{border-color:var(--line-2)}
+.run.past .run-h{background:var(--panel);border:1px solid var(--line);padding:10px 14px;align-items:center}
+.run.past .run-h:hover{border-color:var(--line-2);background:var(--sunk)}
+.run.past .run-h .who{width:26px;height:26px;font-size:10px}
+.run.past .run-h q{-webkit-line-clamp:1;color:var(--ink-2)}
+.run.past .run-h .meta{margin-top:2px}
+.run.past .chev{padding-top:0}
+.run.past:not(.collapsed) .run-h q{-webkit-line-clamp:3;color:var(--ink)}
+.run-h:focus:not(:focus-visible){outline:none}
+/* A run's items hang under its prompt on a timeline. */
+.run-b{margin-left:15px;padding:4px 0 6px 26px;border-left:1.5px solid var(--line-2);position:relative}
+.run-b::after{content:"";position:absolute;left:-4.5px;bottom:-2px;width:7.5px;height:7.5px;border-radius:50%;background:var(--line-2)}
+.by{display:flex;align-items:center;gap:9px;margin:0 0 12px -37px;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.by .cb{width:20px;height:16px;display:grid;place-items:center;background:var(--bg)}
+.by .critter{width:15px;height:10px}
+.by b{font-weight:500;color:var(--accent-ink)}
+.run-b .card::before{content:"";position:absolute;left:-32px;top:22px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:2px solid var(--line-2);box-sizing:border-box}
+.run-b .card.now::before,.run-b .done-card::before{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.run-b .umsg::before{border-color:var(--accent)}
+.run-b .cmd::before{top:17px;width:7px;height:7px;left:-32px;border-width:1.5px}
+.run.past .run-b{margin-top:-2px}
 .run.past q{font-size:18px}
 .pill{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px}
 .pill.work{background:color-mix(in srgb,var(--live) 14%,transparent);color:var(--live)}
@@ -231,6 +249,10 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
   .tabs{order:3;flex-basis:100%}
   .spacer{display:none}
   .run-h q{font-size:17px}
+  .run-b{margin-left:8px;padding-left:14px}
+  .by{margin-left:-25px}
+  .run-b .card::before{left:-21px}
+  .run-b .cmd::before{left:-20px}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -496,7 +518,7 @@ function runHTML(p,r,isLatest){
   let meta='<span class="pill '+cls+'">'+label+'</span><span>'+t.changes+' change'+(t.changes===1?"":"s")+'</span>'+(t.a||t.d?'<span><span class="a">+'+t.a+'</span> <span class="d">−'+t.d+'</span></span>':"")+'<span>'+dur(r.startedAt,r.status==="working"?0:r.endedAt)+'</span><span>'+clock(r.startedAt)+'</span>';
   let h='<section class="run'+(isLatest?"":" past")+(collapsed?" collapsed":"")+'" data-run="'+r.id+'">'+
     '<button class="run-h" type="button" data-toggle="'+r.id+'" aria-expanded="'+!collapsed+'"><span class="who">You</span><span class="pr"><q>'+esc(prompt)+'</q><span class="meta">'+meta+'</span></span><span class="chev">'+ic("chev")+'</span></button>';
-  h+='<div class="run-b"><div class="feed">';
+  h+='<div class="run-b"><p class="by"><span class="cb">'+CRIT+'</span><b>Claude</b>'+(r.status==="working"?"is working":"worked on this")+'</p><div class="feed">';
   const items=r.items.slice().reverse();
   if(r.status!=="working"&&t.changes) h+=doneCard(r);
   const nowId=r.status==="working"?(r.items.filter(i=>i.type==="change").slice(-1)[0]||{}).id:null;
@@ -517,7 +539,8 @@ function renderMain(){
       '<p>Start a new Claude Code session with the Wingman plugin turned on and give Claude a task.</p><p class="muted">Want to see it working first? Run <code>node bin/cli.js demo</code> from the Wingman folder.</p></div>';
     return;
   }
-  const runs=p.runs.slice().reverse();
+  // Older runs with no prompt and nothing to show (only reads or commands) are noise; leave them out.
+  const runs=p.runs.slice().reverse().filter((r,i)=>i===0||r.prompt||r.goal||r.items.some(x=>x.type!=="cmd"));
   if(!runs.length){setHTML($("main"),'<div class="empty">No runs in '+esc(p.name)+' yet. Give Claude a prompt and it shows up here.</div>');return;}
   let h='<div class="runs">'+runHTML(p,runs[0],true);
   if(runs.length>1) h+='<p class="sep">Earlier in '+esc(p.name)+'</p>'+runs.slice(1).map(r=>runHTML(p,r,false)).join("");
