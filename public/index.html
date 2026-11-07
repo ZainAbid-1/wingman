@@ -63,7 +63,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .btn.warn{background:var(--warn-bg);color:var(--warn-ink);border-color:transparent}
 
 .wrap{max-width:1240px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right)) 48px max(16px,env(safe-area-inset-left));display:grid;grid-template-columns:272px minmax(0,1fr);gap:20px;align-items:start}
-.rail{display:flex;flex-direction:column;gap:14px;position:sticky;top:84px}
+.rail{display:flex;flex-direction:column;gap:14px;position:sticky;top:84px;max-height:calc(100vh - 100px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.rail::-webkit-scrollbar{width:6px}.rail::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
 .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
 .eyebrow{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:500;margin:0 0 10px;display:flex;justify-content:space-between;gap:8px}
 .muted{color:var(--ink-3);font-size:12.5px;margin:0}
@@ -301,7 +302,7 @@ button.vt:hover{background:var(--sunk);color:var(--ink)}
 
 @media (max-width:860px){
   .wrap{grid-template-columns:minmax(0,1fr)}
-  .rail{position:static;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+  .rail{position:static;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));max-height:none;overflow:visible;padding-right:0}
 }
 @media (max-width:520px){
   .viewer{padding:0}
@@ -502,7 +503,9 @@ function renderRail(){
   Object.keys(r.files).sort().forEach(f=>{const i=f.lastIndexOf("/");const d=i<0?".":f.slice(0,i);(groups[d]=groups[d]||[]).push(f);});
   let tree="";
   Object.keys(groups).forEach(d=>{
-    tree+='<div class="dir">'+ic("folder")+esc(d)+'</div>';
+    // Folders outside the project are full paths; show just their last name (full path on hover).
+    const outside=/^([a-z]:|\/)/i.test(d);
+    tree+='<div class="dir" title="'+esc(d)+'">'+ic("folder")+esc(outside?"…/"+d.split("/").filter(Boolean).pop():d)+'</div>';
     groups[d].forEach(f=>{
       const s=r.files[f];
       const st=(s.adds||s.dels)?'<span class="st">'+(s.adds?'<span class="a">+'+s.adds+'</span>':"")+(s.dels?'<span class="d">−'+s.dels+'</span>':"")+'</span>':(s.read?'<span class="st">'+ic("eye")+'</span>':"");
