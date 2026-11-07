@@ -1,7 +1,7 @@
 'use strict';
 
 // Plays an example session through the same hook and MCP endpoints Claude Code
-// uses, so pause, feedback and questions on the page behave for real.
+// uses, so feedback and questions on the page behave for real.
 
 const os = require('os');
 const path = require('path');
@@ -45,20 +45,16 @@ async function answerFeedback(text) {
   const ids = [...text.matchAll(/card_id "([^"]+)"/g)].map((m) => m[1]);
   for (const id of new Set(ids)) {
     await sleep(900);
-    const simpler = new RegExp(`explained more simply[^\\n]*${id}`).test(text);
-    if (simpler) {
-      await mcp('explain_change', { card_id: id, what: 'In plain words: this makes the app check first, so it can never trip over an empty playlist.', why: 'Before, it assumed there was always a song to play.' });
-    } else {
-      await mcp('explain_change', {
-        card_id: id,
-        reply: replies[id] || 'Good question. (This is the demo, so the answer is canned. In a real session Claude answers you here.)',
-      });
-    }
+    await mcp('explain_change', {
+      card_id: id,
+      reply: replies[id] || 'Understood, I will do it that way. (This is the demo, so the answer is canned. In a real session Claude answers you here.)',
+    });
   }
 }
 async function edit(file, kind, step, L, patch, tool = 'Edit', reply = '') {
   const lv = await level();
-  const t = L[lv] || L[1];
+  // Samples are written for the old four levels; level 1 is now Technical (old index 2).
+  const t = (lv === 1 ? L[2] : L[0]) || L[1];
   const out = await mcp('explain_change', { file, kind, step, what: t[0], why: t[1] || '', extra: t[2] || '' });
   const m = out.match(/card (c\w+)/);
   if (m && reply) replies[m[1]] = reply;
@@ -85,7 +81,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`\nWingman demo — watch it at ${URL}`);
-  console.log('Try Pause, the detail switch, "Why this way?" and "Not like this". The demo reacts like Claude would.\n');
+  console.log('Try the detail level (top right) and "Not like this" on a card. The demo reacts like Claude would.\n');
   openBrowser();
   await sleep(1500);
 

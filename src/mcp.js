@@ -8,6 +8,7 @@ const { VERSION, request, ensureHub } = require('./shared');
 const INSTRUCTIONS = `Wingman shows the user a live page that explains your work while you do it.
 - For a task with several steps, call start_task first with the goal and short steps.
 - Before each file edit, call explain_change with the file, what you are changing, why, and the plan step. Several small edits to one file can share one call. Call mark_step_done as you finish each step.
+- Write each explanation as one connected story: what was wrong or missing, why that matters, and how this change fixes it. Link every term you use to that story; never just list terms.
 - When you need the user to choose between approaches, call ask_user instead of guessing.
 - Tool results may include the user's chosen explanation level and their feedback. Follow both.`;
 
@@ -27,7 +28,8 @@ const TOOLS = [
   {
     name: 'explain_change',
     description:
-      'Explain an edit to the user before you make it. Write "what" and "why" at the explanation level the tool results tell you. ' +
+      'Explain an edit to the user before you make it. Write "what" and "why" at the explanation level the tool results tell you, ' +
+      'as one connected story (the problem, why it matters, how this change fixes it) rather than a list of terms. ' +
       'Wrap a technical term as {term|short definition} to give it a hover definition. ' +
       'To answer a user question about an earlier card or re-explain it, pass card_id with reply and/or new what/why.',
     inputSchema: {
@@ -35,7 +37,7 @@ const TOOLS = [
       properties: {
         file: { type: 'string', description: 'Path of the file you are about to change.' },
         what: { type: 'string', description: 'What the change does, in one sentence.' },
-        why: { type: 'string', description: 'Why it is needed, in one or two sentences.' },
+        why: { type: 'string', description: 'The problem this solves and how the change solves it, in one to three sentences that follow from each other.' },
         kind: {
           type: 'string',
           enum: ['logic', 'cosmetic', 'new', 'delete', 'test', 'config', 'docs'],

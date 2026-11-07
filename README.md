@@ -1,6 +1,6 @@
 # Wingman
 
-A live page that explains what Claude is changing in your code, and why, while it works. Pick how much detail you want, pause Claude, or tell it "not like this" — without waiting for it to finish.
+A live page that explains what Claude is changing in your code, and why, while it works. Pick how much detail you want, open any changed file with its changes highlighted, or tell Claude "not like this" — without waiting for it to finish.
 
 - Works on any project and any language
 - No API key, no account, no dependencies (Node 18+)
@@ -50,21 +50,28 @@ node /path/to/wingman/bin/cli.js setup
 Claude ── explain_change ("what" + "why") ──► ┐
                                               ├─► hub (localhost:4545) ──► live page
 Claude Code hooks ── real diffs, prompts ───► ┘          ▲                    │
-                                                         └── pause, feedback ◄┘
+                                                         └──── feedback ◄────┘
 ```
 
 - **MCP server** (`wingman`): gives Claude five tools — `start_task`, `explain_change`, `mark_step_done`, `ask_user`, `get_feedback` — plus short instructions on when to use them.
 - **Hooks** (`wingman hook <Event>`): send real diffs from Edit/Write, your prompts, and commands to the page. In a git repository, files changed by shell commands (scripts, `sed`, and so on) are diffed too. They cost no tokens.
-- **Hub**: one small local server per machine. It starts by itself and stops after 3 idle hours. History is kept in `~/.wingman/state.json`.
+- **Hub**: one small local server per machine. It starts by itself and stops after 3 idle hours. History is kept in `~/.wingman/state.json` (with copies of changed files in `~/.wingman/orig/` for the file viewer) and never leaves your computer.
+- **Safety**: the hub listens on `127.0.0.1` only and refuses requests addressed to any other host name or sent by other websites, so a web page cannot read your history or act on it. The hook always exits cleanly, so a problem in Wingman never blocks Claude.
+
+## Tests
+
+```
+npm test
+```
+
+Runs an isolated hub in a temporary folder (your real history is untouched) and checks safety and edge cases end to end.
 
 ### What each button does
 
 | On the page | What reaches Claude |
 |---|---|
-| Pause Claude | The next tool call waits (up to 10 minutes) until you resume. |
 | Click a file (left side) | Opens the whole file with this run's changes highlighted, a strip marking where they are, next/previous change buttons, and a folder tree showing where the file sits in the project. |
 | Not like this | Works like a new prompt about that change. It reaches Claude before its next edit or command (which waits until Claude has read it), and Claude's response shows up as its own run. If Claude has already finished, it goes along with your next message. |
-| Simpler | Claude rewrites that card's explanation in plainer words. |
 | Question cards | Claude waits for your choice. |
 | Explain changes as | New explanations are written at that level. |
 
@@ -72,7 +79,7 @@ Claude can't be interrupted in the middle of writing a reply; feedback lands at 
 
 ### Other MCP clients
 
-Without hooks (Claude Desktop, Cursor and others), you still get explained cards, plans and questions. Diffs, prompt grouping and pause need Claude Code hooks, and feedback arrives only when Claude calls one of the Wingman tools.
+Without hooks (Claude Desktop, Cursor and others), you still get explained cards, plans and questions. Diffs and prompt grouping need Claude Code hooks, and feedback arrives only when Claude calls one of the Wingman tools.
 
 ## Settings
 

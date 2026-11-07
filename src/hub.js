@@ -2,7 +2,7 @@
 
 // The hub is one small local web server per machine. It keeps the explanation
 // state, serves the live page, receives events from hooks and the MCP server,
-// and holds pause / feedback / answers until Claude picks them up.
+// and holds feedback and answers until Claude picks them up.
 
 const http = require('http');
 const fs = require('fs');
@@ -12,12 +12,19 @@ const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const { PORT, HOST, VERSION, openBrowser } = require('./shared');
 
+// Both levels tell each change as one connected story: what was wrong or missing, why it
+// matters, and how this change fixes it. They differ only in vocabulary.
+const STORY =
+  'tell it as one connected story, not a list of facts: first what was wrong or missing, then why that matters, then how this change fixes it, with each sentence leading to the next';
 const LEVELS = [
-  { name: 'Big picture', guide: 'plain words for someone who does not read code; avoid jargon and code names; an everyday comparison is welcome' },
-  { name: 'Walkthrough', guide: 'name the files and functions involved and define at most one technical term per change as {term|short definition}' },
-  { name: 'Technical', guide: 'concise and technical, for a developer' },
-  { name: 'Terse', guide: 'one short line; "why" only if it is not obvious' },
+  { name: 'Big picture', guide: `plain words for someone who does not read code; no code names or jargon; ${STORY}; an everyday comparison is welcome` },
+  {
+    name: 'Technical',
+    guide: `for a developer: name the files, functions and mechanisms, but ${STORY}; every technical term must be linked to the problem or the fix, never just listed; wrap a term the reader may not know as {term|short definition}`,
+  },
 ];
+// Older versions had four levels (Big picture, Walkthrough, Technical, Terse).
+const OLD_LEVEL = [0, 1, 1, 1];
 const WINGMAN_TOOL = /(^|__)(start_task|explain_change|mark_step_done|ask_user|get_feedback)$/;
 const EDIT_TOOLS = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit']);
 const MUTATING = new Set(['Edit', 'MultiEdit', 'Write', 'NotebookEdit', 'Bash', 'PowerShell']);
@@ -26,7 +33,7 @@ const STORE = path.join(STORE_DIR, 'state.json');
 const MAX_RUNS = 30;
 const MAX_ROWS = 160;
 
-let state = { level: 0, projects: {} };
+let state = { level: 0, levelsVersion: 2, projects: {} };
 let seq = 0;
 const id = (p) => `${p}${Date.now().toString(36)}${(seq++).toString(36)}`;
 const now = () => Date.now();
@@ -36,8 +43,14 @@ function load() {
   try {
     const s = JSON.parse(fs.readFileSync(STORE, 'utf8'));
     if (s && s.projects) state = s;
+    if (state.levelsVersion !== 2) {
+      const map = (l) => (l == null ? l : OLD_LEVEL[l] == null ? 0 : OLD_LEVEL[l]);
+      state.level = map(state.level) || 0;
+      for (const p of Object.values(state.projects)) for (const r of p.runs) for (const c of r.items) if (c.type === 'change') c.level = map(c.level);
+      state.levelsVersion = 2;
+    }
     for (const p of Object.values(state.projects)) {
-      p.paused = false;
+      delete p.paused; // left over from versions that had Pause
       p.activity = '';
       p.pending = [];
       // A run active in the last 30 minutes survives a hub restart (for example an update mid-run).
@@ -91,7 +104,6 @@ function project(cwd) {
       key,
       name: path.basename(path.resolve(cwd || '.')) || 'project',
       cwd: path.resolve(cwd || '.'),
-      paused: false,
       activity: '',
       runs: [],
       pending: [],
@@ -416,6 +428,7 @@ function fileViewRows(key, runId, f) {
   const abs = path.resolve(p.cwd, f);
   const now1 = readSmall(abs);
   if (now1 == null) return { error: 'This file is too large to show here.' };
+  if (now1.includes('\u0000')) return { error: 'This is a binary file, so there is no text to show.' };
   const exists = fs.existsSync(abs);
   const plain = () => (now1 ? now1.replace(/\n$/, '').split('\n') : []).map((s, i) => ({ t: ' ', n: i + 1, s }));
   let base = null;
@@ -433,6 +446,7 @@ function fileViewRows(key, runId, f) {
     return { file: f, rows: plain(), hasBase: false, exists };
   }
   if (base === now1) return { file: f, rows: plain(), hasBase: true, exists };
+  if (!exists) return { file: f, rows: base.replace(/\r?\n$/, '').split(/\r?\n/).map((s, i) => ({ t: '-', n: i + 1, s })), hasBase: true, exists };
   const tmp = path.join(os.tmpdir(), `wingman-view-${process.pid}-${seq++}`);
   try {
     fs.writeFileSync(tmp, base);
@@ -527,9 +541,15 @@ function commandChanges(snap) {
     const before = snap.content.has(f) ? snap.content.get(f) : git(snap.root, ['show', `HEAD:${f}`]) || '';
     const after = readSmall(abs);
     if (before == null || after == null || before === after) continue;
-    fs.writeFileSync(tmp, before);
-    const r = spawnSync('git', ['diff', '--no-index', '--no-color', '-U3', '--', tmp, fs.existsSync(abs) ? abs : os.devNull], { encoding: 'utf8', timeout: 4000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
-    const rows = unifiedRows(r.stdout || '');
+    let rows;
+    if (!fs.existsSync(abs)) {
+      // Deleted: every old line is a removal (git can't diff against NUL on Windows).
+      rows = before.replace(/\r?\n$/, '').split(/\r?\n/).map((s, i) => ({ t: '-', n: i + 1, s }));
+    } else {
+      fs.writeFileSync(tmp, before);
+      const r = spawnSync('git', ['diff', '--no-index', '--no-color', '-U3', '--', tmp, abs], { encoding: 'utf8', timeout: 4000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+      rows = unifiedRows(r.stdout || '');
+    }
     if (!rows.length) continue;
     const adds = rows.filter((x) => x.t === '+').length;
     const dels = rows.filter((x) => x.t === '-').length;
@@ -621,15 +641,7 @@ async function mcpCall(body) {
         if (a.what) card.what = String(a.what);
         if (a.why !== undefined) card.why = String(a.why || '');
         if (a.extra !== undefined) card.extra = String(a.extra || '');
-        if (a.what || a.why) {
-          // A "Simpler" rewrite is written at the level below the card's old one.
-          if (card.wantSimpler && card.simplerTo != null) {
-            card.level = card.simplerTo;
-            card.simplified = true;
-          } else card.level = state.level;
-          card.wantSimpler = false;
-          card.simplerTo = null;
-        }
+        if (a.what || a.why) card.level = state.level;
         changed();
         return reply(p, run, a, 'Updated.');
       }
@@ -762,13 +774,6 @@ async function hookCall(body) {
         }
       }
       changed();
-      if (p.paused) {
-        const deadline = now() + 585 * 1000;
-        while (p.paused && now() < deadline) await sleep(300);
-        if (p.paused) {
-          return deny('The user paused you from Wingman. Stop here and ask them how they want to continue.');
-        }
-      }
       if (MUTATING.has(tool) && p.pending.length) {
         const fb = takePending(p);
         return deny(`Before this step, the user left feedback in Wingman. Take it into account, then continue (retry this step only if it still makes sense):\n${fb}`);
@@ -870,12 +875,6 @@ function uiCall(b) {
   const p = state.projects[b.key];
   if (!p) return { error: 'Unknown project' };
   switch (b.action) {
-    case 'pause':
-      p.paused = true;
-      break;
-    case 'resume':
-      p.paused = false;
-      break;
     case 'answer': {
       for (const r of p.runs) {
         const q = r.items.find((x) => x.id === b.askId && x.type === 'ask');
@@ -886,18 +885,10 @@ function uiCall(b) {
     case 'feedback': {
       const { run: cardRun, card } = findCard(p, b.cardId);
       if (!card) return { error: 'Unknown card' };
+      // Only "Not like this" (no) and questions (why) exist; anything else, such as a
+      // leftover "simpler" from an old open tab, is refused rather than sent to Claude.
+      if (b.kind !== 'no' && b.kind !== 'why') return { error: 'Unknown feedback' };
       const where = `card ${card.id}${card.file ? ` (${card.file})` : ''}`;
-      if (b.kind === 'ok') {
-        card.approved = true;
-        break;
-      }
-      if (b.kind === 'simpler') {
-        card.wantSimpler = true;
-        card.simplerTo = Math.max(0, (card.level == null ? state.level : card.level) - 1);
-        const to = LEVELS[card.simplerTo];
-        queue(p, `The user wants ${where} explained more simply. Call explain_change with card_id "${card.id}" and a new what/why written at the "${to.name}" level: ${to.guide}.`);
-        break;
-      }
       const text = String(b.text || '').trim() || (b.kind === 'why' ? 'Why did you do it this way?' : 'Not like this.');
       const msg = { from: 'user', kind: b.kind, text, delivered: false, at: now() };
       card.thread.push(msg);
@@ -988,7 +979,16 @@ let lastHit = now();
 function readBody(req) {
   return new Promise((resolve) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_BODY) {
+        chunks.length = 0;
+        req.destroy();
+        return resolve({});
+      }
+      chunks.push(c);
+    });
     req.on('end', () => {
       try {
         resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
@@ -998,6 +998,8 @@ function readBody(req) {
     });
   });
 }
+const MAX_BODY = 8 * 1024 * 1024;
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
 function send(res, code, obj) {
   const data = JSON.stringify(obj);
   res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -1010,6 +1012,9 @@ function main() {
   const server = http.createServer(async (req, res) => {
     lastHit = now();
     const url = new URL(req.url, 'http://x');
+    // Only answer requests addressed to this machine by name. A website that points its own
+    // domain at 127.0.0.1 (DNS rebinding) arrives with its domain as Host and is refused.
+    if (!LOCAL_HOST.test(req.headers.host || '')) return send(res, 403, { error: 'Forbidden' });
     try {
       if (req.method === 'GET' && url.pathname === '/') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
@@ -1018,8 +1023,6 @@ function main() {
       if (req.method === 'GET' && url.pathname === '/api/ping') return send(res, 200, { ok: true, version: VERSION });
       if (req.method === 'GET' && url.pathname === '/api/state') return send(res, 200, publicState());
       if (req.method === 'GET' && url.pathname === '/api/file') {
-        // File contents only for this machine's page (guards against DNS rebinding).
-        if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) return send(res, 403, { error: 'Forbidden' });
         const q = url.searchParams;
         return send(res, 200, fileView(q.get('key'), q.get('run'), q.get('file')));
       }

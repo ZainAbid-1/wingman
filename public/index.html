@@ -36,7 +36,7 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 80%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
 ::selection{background:color-mix(in srgb,var(--accent) 40%,transparent)}
 .top-in{max-width:1240px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right)) 12px max(16px,env(safe-area-inset-left));display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
-.brand,.setwrap,#pauseBtn{flex:none}
+.brand,.setwrap{flex:none}
 .brand{display:flex;align-items:center;gap:11px;font-family:var(--f-display);font-weight:600;font-size:23px;letter-spacing:-.01em}
 .critter{display:block;fill:var(--accent);fill-rule:evenodd;shape-rendering:crispEdges;flex:none}
 .brand .critter{width:30px;height:20px;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 45%,transparent))}
@@ -258,8 +258,6 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .pop .foot{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
 
 @media (max-width:1240px){
-  #pauseBtn .bl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-  #pauseBtn{padding:7px 9px}
 }
 /* File viewer */
 .tree button.f{border:0;background:transparent;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer}
@@ -344,15 +342,11 @@ button.vt:hover{background:var(--sunk);color:var(--ink)}
         <h2>Explain changes as</h2>
         <p class="muted">Claude writes new cards at this level.</p>
         <div class="lv" id="seg" role="radiogroup" aria-label="Explanation detail">
-          <button type="button" role="radio" data-l="0"><b>Big picture</b><small>Plain words, no code</small></button>
-          <button type="button" role="radio" data-l="1"><b>Walkthrough</b><small>Names files and explains terms</small></button>
-          <button type="button" role="radio" data-l="2"><b>Technical</b><small>Concise, for developers</small></button>
-          <button type="button" role="radio" data-l="3"><b>Terse</b><small>One line per change</small></button>
+          <button type="button" role="radio" data-l="0"><b>Big picture</b><small>Plain words, told as a story</small></button>
+          <button type="button" role="radio" data-l="1"><b>Technical</b><small>Code names, linked from problem to fix</small></button>
         </div>
-        <p class="foot">Use Simpler on a card to rewrite just that one.</p>
       </div>
     </div>
-    <button class="btn" id="pauseBtn" type="button" disabled></button>
   </div>
 </header>
 
@@ -450,7 +444,6 @@ function current(){
 }
 function runStatus(p,r){
   if(r.status!=="working") return ["ok","Done"];
-  if(p.paused) return ["wait","Paused"];
   if(r.items.some(i=>i.type==="ask"&&i.answer===null)) return ["wait","Waiting for you"];
   return ["work","Working"];
 }
@@ -471,25 +464,20 @@ function renderTop(){
     return '<button class="tab'+(x.key===V.sel?' on':'')+'" type="button" role="tab" aria-selected="'+(x.key===V.sel)+'" data-key="'+esc(x.key)+'" title="'+esc(x.cwd)+'"><span class="sd '+dot+'"></span>'+esc(x.name)+'</button>';
   }).join(""));
   $("tabs").hidden=ps.length===0;
-  const s=$("status"),t=$("statusText"),b=$("pauseBtn");
+  const s=$("status"),t=$("statusText");
   let cls="",txt="";
   if(!V.connected){cls="off";txt="Can't reach Wingman. Is it running?";}
   else if(!p){txt="Waiting for Claude";}
   else{
     const r=p.runs[p.runs.length-1];
-    if(p.paused){cls="wait";txt="Paused · Claude stops before its next action";}
-    else if(r&&r.status==="working"){
+    if(r&&r.status==="working"){
       const ask=r.items.some(i=>i.type==="ask"&&i.answer===null);
       cls=ask?"wait":"work";txt=ask?"Waiting for your answer":(p.activity||"Thinking…");
     } else {txt=r?"Idle · last run "+ago(r.endedAt||r.startedAt):"Idle";}
   }
   s.className="status "+cls;t.textContent=txt;
   document.body.classList.toggle("live",cls==="work");
-  b.disabled=!p||!V.connected;
-  b.className="btn"+(p&&p.paused?" warn":"");
-  const bl=p&&p.paused?"Resume Claude":"Pause Claude";
-  b.title=bl;s.title=txt;
-  setHTML(b,ic(p&&p.paused?"play":"pause")+'<span class="bl">'+bl+'</span>');
+  s.title=txt;
 }
 
 /* ---------- rail ---------- */
@@ -559,7 +547,6 @@ function changeCard(p,r,c,isNow){
     if(c.why) h+='<p class="why"><b>Why:</b> '+fmt(c.why)+'</p>';
     if(c.extra) h+='<p class="x">'+fmt(c.extra)+'</p>';
   } else h+='<p class="none">Claude made this change without explaining it.</p>';
-  if(c.wantSimpler) h+='<span class="lvnote">Asked Claude for a simpler version. It updates at Claude\'s next step.</span>';
   h+='</div>';
   if(c.diff){
     if(lv===0&&!V.showCode[c.id]) h+='<button class="showcode" type="button" data-act="code" data-id="'+c.id+'">'+ic("code")+'Show the code ('+(c.diff.adds+c.diff.dels)+' lines changed)</button>';
@@ -568,7 +555,6 @@ function changeCard(p,r,c,isNow){
   else h+='<p class="pending">No edit was recorded for this explanation.</p>';
   h+='<div class="acts">'+
     '<button class="act" type="button" data-act="no" data-id="'+c.id+'">'+ic("x")+'Not like this</button>'+
-    (c.what&&c.level>0&&!c.wantSimpler?'<button class="act" type="button" data-act="simpler" data-id="'+c.id+'">'+ic("down")+'Simpler</button>':"")+
     '</div>';
   let th=c.thread.map(m=>m.from==="claude"
     ?'<div class="msg c"><span class="av">'+CRIT+'</span><span class="bub">'+fmt(m.text)+'</span></div>'
@@ -643,7 +629,7 @@ function renderMain(){
 function renderDial(){
   const l=V.state?V.state.level:0;
   document.querySelectorAll("#seg button").forEach(b=>{const on=+b.dataset.l===l;b.classList.toggle("on",on);b.setAttribute("aria-checked",on);});
-  const n=["Big picture","Walkthrough","Technical","Terse"][l];if(n)$("lvName").textContent=n;
+  const n=(V.state&&V.state.levels||["Big picture","Technical"])[l];if(n)$("lvName").textContent=n;
 }
 
 function render(){
@@ -760,11 +746,6 @@ $("tabs").addEventListener("click",e=>{
   const t=e.target.closest(".tab");if(!t)return;
   V.sel=t.dataset.key;V.pickedAt=Date.now();V.focus=null;try{localStorage.setItem("wingman-project",V.sel);}catch(err){}
   render();
-});
-$("pauseBtn").addEventListener("click",()=>{
-  const p=current();if(!p)return;
-  p.paused=!p.paused;renderTop();
-  post({action:p.paused?"pause":"resume",key:p.key});
 });
 $("main").addEventListener("click",e=>{
   const tg=e.target.closest("[data-toggle]");

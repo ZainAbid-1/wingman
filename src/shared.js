@@ -40,16 +40,16 @@ function request(method, urlPath, body, timeoutMs = 5000) {
   });
 }
 
-async function hubVersion() {
+async function hubVersion(timeoutMs = 800) {
   try {
-    const r = await request('GET', '/api/ping', undefined, 800);
+    const r = await request('GET', '/api/ping', undefined, timeoutMs);
     return r && r.ok === true ? r.version || '0.0.0' : null;
   } catch {
     return null;
   }
 }
-async function ping() {
-  return (await hubVersion()) !== null;
+async function ping(timeoutMs) {
+  return (await hubVersion(timeoutMs)) !== null;
 }
 function older(a, b) {
   const x = String(a).split('.').map(Number);
@@ -74,10 +74,14 @@ async function ensureHub() {
     windowsHide: true,
     env: process.env,
   });
+  // If the new hub exits (for example another program holds the port), stop waiting at once.
+  let exited = false;
+  child.on('exit', () => (exited = true));
+  child.on('error', () => (exited = true));
   child.unref();
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 30 && !exited; i++) {
     await new Promise((r) => setTimeout(r, 100));
-    if (await ping()) return true;
+    if (await ping(400)) return true;
   }
   return false;
 }

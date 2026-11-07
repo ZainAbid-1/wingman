@@ -1,8 +1,11 @@
 {
   "name": "claude-code-wingman",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "A live page that explains what Claude is changing in your code, and why, while it works.",
   "type": "commonjs",
+  "scripts": {
+    "test": "node test/run.js"
+  },
   "bin": {
     "wingman": "bin/cli.js"
   },
