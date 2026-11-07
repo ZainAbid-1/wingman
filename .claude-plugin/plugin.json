@@ -1,6 +1,6 @@
 {
   "name": "wingman",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A live page that explains what Claude is changing in your code, and why, while it works. Pause Claude, ask why, or redirect it mid-task.",
   "author": {
     "name": "Zain Abid",
