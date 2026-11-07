@@ -121,6 +121,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .run-b .cmd::before{top:17px;width:7px;height:7px;left:-32px;border-width:1.5px}
 .run.past .run-b{margin-top:-2px}
 .run.past q{font-size:18px}
+.redir{display:inline-flex;align-items:center;gap:4px;color:var(--accent-ink)}
+.redir svg{width:12px;height:12px}
 .pill{font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px}
 .pill.work{background:color-mix(in srgb,var(--live) 14%,transparent);color:var(--live)}
 .pill.wait{background:var(--warn-bg);color:var(--warn-ink)}
@@ -495,14 +497,12 @@ function changeCard(p,r,c,isNow){
   } else if(r.status==="working") h+='<p class="pending"><span class="typing"><i></i><i></i><i></i></span>Waiting for the edit</p>';
   else h+='<p class="pending">No edit was recorded for this explanation.</p>';
   h+='<div class="acts">'+
-    '<button class="act" type="button" data-act="why" data-id="'+c.id+'">'+ic("help")+'Why this way?</button>'+
     '<button class="act" type="button" data-act="no" data-id="'+c.id+'">'+ic("x")+'Not like this</button>'+
-    (c.approved?'<button class="act ok" type="button" disabled>'+ic("check")+'Approved</button>':'<button class="act" type="button" data-act="ok" data-id="'+c.id+'">'+ic("check")+'Looks good</button>')+
     (c.what&&c.level>0&&!c.wantSimpler?'<button class="act" type="button" data-act="simpler" data-id="'+c.id+'">'+ic("down")+'Simpler</button>':"")+
     '</div>';
   let th=c.thread.map(m=>m.from==="claude"
     ?'<div class="msg c"><span class="av">'+CRIT+'</span><span class="bub">'+fmt(m.text)+'</span></div>'
-    :'<div class="msg u"><span class="av">You</span><span class="bub">'+esc(m.text)+'<em class="'+(m.delivered?"ok":"")+'">'+(m.delivered?"Delivered to Claude":m.answering?"Claude is answering":r.status==="working"?"Waiting for Claude's next step":"Claude has finished. It gets this with your next message in Claude Code")+'</em></span></div>').join("");
+    :'<div class="msg u"><span class="av">You</span><span class="bub">'+esc(m.text)+'<em class="'+(m.delivered?"ok":"")+'">'+(m.delivered?(m.kind==="no"?"Sent to Claude as a new prompt":"Delivered to Claude"):m.answering?"Claude is answering":r.status==="working"?"Waiting for Claude's next step":"Claude has finished. It gets this with your next message in Claude Code")+'</em></span></div>').join("");
   const last=c.thread[c.thread.length-1];
   if(last&&last.from==="user"&&((last.delivered&&r.status==="working")||last.answering)) th+='<div class="msg c"><span class="av">'+CRIT+'</span><span class="bub"><span class="typing"><i></i><i></i><i></i></span></span></div>';
   if(V.replyOpen[c.id]) th+='<form class="reply" data-id="'+c.id+'"><input id="in-'+c.id+'" placeholder="What should Claude do instead?" aria-label="Tell Claude what to change" value="'+esc(V.drafts[c.id]||"")+'"><button class="btn solid" type="submit">'+ic("send")+'Send</button></form>';
@@ -517,7 +517,7 @@ function askCard(c,isNow){
   return '<article class="card ask k-ask'+(open?" now":"")+'" data-cid="'+c.id+'">'+h+'</article>';
 }
 function msgCard(c){
-  return '<article class="card umsg" data-cid="'+c.id+'"><div class="ch"><span class="who">You</span><div style="flex:1;min-width:0"><p class="ub">'+esc(c.text)+'</p><p class="uc">Sent while Claude was working · '+ago(c.at)+'</p></div></div></article>';
+  return '<article class="card umsg" data-cid="'+c.id+'"><div class="ch"><span class="who">You</span><div style="flex:1;min-width:0"><p class="ub">'+esc(c.text)+'</p><p class="uc">'+esc(c.note||"Sent while Claude was working")+' · '+ago(c.at)+'</p></div></div></article>';
 }
 function cmdCard(c){
   const lv=V.state.level;
@@ -536,7 +536,7 @@ function runHTML(p,r,isLatest){
   const t=runTotals(r);
   const collapsed=V.collapsed[r.id]!=null?V.collapsed[r.id]:!isLatest;
   const prompt=r.prompt||r.goal||"Untitled run";
-  let meta='<span class="pill '+cls+'">'+label+'</span><span>'+t.changes+' change'+(t.changes===1?"":"s")+'</span>'+(t.a||t.d?'<span><span class="a">+'+t.a+'</span> <span class="d">−'+t.d+'</span></span>':"")+'<span>'+dur(r.startedAt,r.status==="working"?0:r.endedAt)+'</span><span>'+clock(r.startedAt)+'</span>';
+  let meta='<span class="pill '+cls+'">'+label+'</span><span>'+t.changes+' change'+(t.changes===1?"":"s")+'</span>'+(t.a||t.d?'<span><span class="a">+'+t.a+'</span> <span class="d">−'+t.d+'</span></span>':"")+'<span>'+dur(r.startedAt,r.status==="working"?0:r.endedAt)+'</span><span>'+clock(r.startedAt)+'</span>'+(r.about!=null?'<span class="redir">'+ic("x")+'Not like this'+(r.about?' · '+esc(r.about):'')+'</span>':'');
   let h='<section class="run'+(isLatest?"":" past")+(collapsed?" collapsed":"")+'" data-run="'+r.id+'">'+
     '<button class="run-h" type="button" data-toggle="'+r.id+'" aria-expanded="'+!collapsed+'"><span class="who">You</span><span class="pr"><q>'+esc(prompt)+'</q><span class="meta">'+meta+'</span></span><span class="chev">'+ic("chev")+'</span></button>';
   h+='<div class="run-b"><p class="by"><span class="cb">'+CRIT+'</span><b>Claude</b>'+(r.status==="working"?"is working":"worked on this")+'</p><div class="feed">';

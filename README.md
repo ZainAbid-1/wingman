@@ -1,6 +1,6 @@
 # Wingman
 
-A live page that explains what Claude is changing in your code, and why, while it works. Pick how much detail you want, pause Claude, ask "why this way?", or tell it "not like this" — without waiting for it to finish.
+A live page that explains what Claude is changing in your code, and why, while it works. Pick how much detail you want, pause Claude, or tell it "not like this" — without waiting for it to finish.
 
 - Works on any project and any language
 - No API key, no account, no dependencies (Node 18+)
@@ -62,8 +62,7 @@ Claude Code hooks ── real diffs, prompts ───► ┘          ▲      
 | On the page | What reaches Claude |
 |---|---|
 | Pause Claude | The next tool call waits (up to 10 minutes) until you resume. |
-| Not like this | Your note is delivered before Claude's next edit or command, which is held back until Claude has read it. |
-| Why this way? | Claude answers on the card at its next step. If Claude has already finished, Wingman asks a short background copy of the same conversation (read-only, not saved), and the answer appears on the card. |
+| Not like this | Works like a new prompt about that change. It reaches Claude before its next edit or command (which waits until Claude has read it), and Claude's response shows up as its own run. If Claude has already finished, it goes along with your next message. |
 | Simpler | Claude rewrites that card's explanation in plainer words. |
 | Question cards | Claude waits for your choice. |
 | Explain changes as | New explanations are written at that level. |

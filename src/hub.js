@@ -171,14 +171,29 @@ function maybeOpen() {
 }
 
 /* ---------- feedback queue ---------- */
-function queue(p, text, msg) {
-  p.pending.push({ text, msg: msg || null });
+function queue(p, text, msg, redirect) {
+  p.pending.push({ text, msg: msg || null, redirect: redirect || null });
 }
-function takePending(p) {
+// "Not like this" works like a new prompt. Delivered mid-turn, it closes the current
+// run and starts a new one for Claude's response; delivered with the user's next
+// prompt (withPrompt), it joins that prompt's run as a message.
+function takePending(p, withPrompt) {
   if (!p.pending.length) return '';
   const out = p.pending.map((x) => `- ${x.text}`).join('\n');
   for (const x of p.pending) if (x.msg) x.msg.delivered = true;
+  const reds = p.pending.filter((x) => x.redirect).map((x) => x.redirect);
   p.pending = [];
+  if (reds.length) {
+    if (withPrompt) {
+      const run = working(p);
+      if (run) for (const r of reds) run.items.push({ id: id('m'), type: 'message', text: r.text, note: `Not like this${r.file ? ` · ${r.file}` : ''}`, at: now() });
+    } else {
+      const old = working(p);
+      const run = newRun(p, reds.map((r) => r.text).join(' · '), 'redirect');
+      run.about = reds[0].file || '';
+      if (old) run.session = old.session;
+    }
+  }
   changed();
   return out;
 }
@@ -422,7 +437,7 @@ async function hookCall(body) {
       }
       changed();
       // Feedback left after Claude finished its last turn reaches it with this message.
-      const fb = takePending(p);
+      const fb = takePending(p, true);
       const parts = [SHORT_REMINDER];
       if (clients.size === 0) parts.push(BROWSER_HINT);
       if (fb) parts.push(`Feedback the user left in Wingman after your last turn (handle it too):\n${fb}`);
@@ -601,7 +616,7 @@ function uiCall(b) {
         if (cardRun && cardRun.status !== 'working' && !working(p) && answerLater(p, cardRun, card, msg)) break;
         queue(p, `About ${where}, the user asks: "${text}". Answer in one or two sentences with explain_change, card_id "${card.id}", reply.`, msg);
       } else {
-        queue(p, `The user does not want ${where} as it is: "${text}". Change your approach accordingly, and reply briefly with explain_change, card_id "${card.id}", reply.`, msg);
+        queue(p, `The user does not want ${where} as it is: "${text}". Treat this as a new instruction: change your approach accordingly, and reply briefly with explain_change, card_id "${card.id}", reply.`, msg, { text, file: card.file || '' });
       }
       break;
     }
