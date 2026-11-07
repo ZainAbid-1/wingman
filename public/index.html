@@ -82,7 +82,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .tree .f{display:flex;align-items:center;gap:7px;padding:5px 6px 5px 22px;border-radius:7px;color:var(--ink-2)}
 .tree .f .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tree .f .st{font-size:11px;display:flex;gap:4px;align-items:center}
-.tree .a,.meta .a,.diff-h .a{color:var(--add-ink)}.tree .d,.meta .d,.diff-h .d{color:var(--del-ink)}
+.tree .a,.meta .a,.diff-h .a,.stat .a{color:var(--add-ink)}.tree .d,.meta .d,.diff-h .d,.stat .d{color:var(--del-ink)}
+.stat b span{font-size:inherit;opacity:1}
 .tree .f.active{background:var(--accent-soft);color:var(--accent-ink)}
 .tag-new{font-size:10px;padding:0 5px;border-radius:4px;background:var(--info-bg);color:var(--info-ink);font-family:var(--f-body);font-weight:600}
 .cost-n{font-family:var(--f-display);font-size:32px;font-weight:500;color:var(--accent-ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -535,7 +536,7 @@ function cmdCard(c){
 function doneCard(r){
   const t=runTotals(r);
   return '<article class="card done-card" data-cid="done-'+r.id+'"><div class="ch"><span class="ico">'+ic("check")+'</span><h3>Finished</h3><span class="when" style="color:inherit;opacity:.7">'+dur(r.startedAt,r.endedAt)+'</span></div>'+
-   '<div class="stats"><div class="stat"><b>'+t.files+'</b><span>files changed</span></div><div class="stat"><b>+'+t.a+' −'+t.d+'</b><span>lines</span></div><div class="stat"><b>≈ '+r.tokens.toLocaleString()+'</b><span>explanation tokens</span></div></div></article>';
+   '<div class="stats"><div class="stat"><b>'+t.files+'</b><span>files changed</span></div><div class="stat"><b><span class="a">+'+t.a+'</span> <span class="d">−'+t.d+'</span></b><span>lines</span></div><div class="stat"><b>≈ '+r.tokens.toLocaleString()+'</b><span>explanation tokens</span></div></div></article>';
 }
 
 /* ---------- runs ---------- */
