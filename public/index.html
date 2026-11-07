@@ -144,6 +144,10 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .by .cb{width:20px;height:16px;display:grid;place-items:center;background:var(--bg)}
 .by .critter{width:15px;height:10px}
 .by b{font-weight:500;color:var(--accent-ink)}
+.by{flex-wrap:wrap;row-gap:2px}
+.by .doing{flex-basis:100%;padding-left:29px;font-family:var(--f-body);font-size:13px;letter-spacing:0;text-transform:none;color:var(--ink-2);overflow-wrap:anywhere}
+.by .doing::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live);margin-right:8px;vertical-align:middle;animation:ping 1.6s infinite}
+.offline{position:sticky;top:61px;z-index:4;background:var(--del-bg);color:var(--del-ink);border-bottom:1px solid color-mix(in srgb,var(--del-ink) 30%,transparent);font-size:13px;text-align:center;padding:7px 16px}
 .run-b .card::before{content:"";position:absolute;left:-32px;top:22px;width:9px;height:9px;border-radius:50%;background:var(--bg);border:2px solid var(--line-2);box-sizing:border-box}
 .run-b .card.now::before,.run-b .done-card::before{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
 .run-b .umsg::before{border-color:var(--accent)}
@@ -393,6 +397,7 @@ button.vt:hover{background:var(--sunk);color:var(--ink)}
     </div>
   </div>
 </header>
+<div class="offline" id="offline" hidden role="alert">Can't reach Wingman. It starts again by itself with Claude's next step, and this page reconnects on its own.</div>
 
 <main class="wrap">
   <aside class="rail" id="rail"></aside>
@@ -518,19 +523,21 @@ function renderTop(){
   const others=ps.filter(x=>x!==p&&dotOf(x)).length;
   $("projMore").hidden=!others;$("projMore").textContent=others?others+" working":"";
   const s=$("status"),t=$("statusText");
-  let cls="",txt="";
-  if(!V.connected){cls="off";txt="Can't reach Wingman. Is it running?";}
-  else if(!p){txt="Waiting for Claude";}
+  // The pill only ever holds a few words; the detailed activity lives on the run itself.
+  let cls="",txt="",full="";
+  if(!V.connected){cls="off";txt="Offline";full="Can't reach Wingman. Is it running?";}
+  else if(!p){txt="Waiting";full="Waiting for Claude";}
   else{
     const r=p.runs[p.runs.length-1];
     if(r&&r.status==="working"){
       const ask=r.items.some(i=>i.type==="ask"&&i.answer===null);
-      cls=ask?"wait":"work";txt=ask?"Waiting for your answer":(p.activity||"Thinking…");
-    } else {txt=r?"Idle · last run "+ago(r.endedAt||r.startedAt):"Idle";}
+      cls=ask?"wait":"work";txt=ask?"Needs your answer":"Working";full=ask?"Claude is waiting for your answer":(p.activity||"Thinking…");
+    } else {txt=r?"Idle · "+ago(r.endedAt||r.startedAt):"Idle";full=r?"Idle · last run "+ago(r.endedAt||r.startedAt):"Idle";}
   }
   s.className="status "+cls;t.textContent=txt;
   document.body.classList.toggle("live",cls==="work");
-  s.title=txt;
+  s.title=full;
+  $("offline").hidden=V.connected;
 }
 
 /* ---------- rail ---------- */
@@ -651,7 +658,10 @@ function runHTML(p,r,isLatest){
   const focused=!isLatest&&!collapsed&&V.focus===r.id;
   let h='<section class="run'+(isLatest?"":" past")+(collapsed?" collapsed":"")+(focused?" focus":"")+'" data-run="'+r.id+'">'+
     '<button class="run-h" type="button" data-toggle="'+r.id+'" aria-expanded="'+!collapsed+'"><span class="who">You</span><span class="pr"><q>'+esc(prompt)+'</q><span class="meta">'+meta+'</span></span><span class="chev">'+ic("chev")+'</span></button>';
-  h+='<div class="run-b"><p class="by"><span class="cb">'+CRIT+'</span><b>Claude</b>'+(r.status==="working"?"is working":"worked on this")+'</p><div class="feed">';
+  // What Claude is doing right now (full text, wraps freely) sits on the run it belongs to.
+  const asking=r.status==="working"&&r.items.some(i=>i.type==="ask"&&i.answer===null);
+  const doing=r.status==="working"&&isLatest&&!asking&&p.activity?'<span class="doing">'+esc(p.activity)+'</span>':"";
+  h+='<div class="run-b"><p class="by"><span class="cb">'+CRIT+'</span><b>Claude</b><span>'+(asking?"is waiting for your answer":r.status==="working"?"is working":"worked on this")+'</span>'+doing+'</p><div class="feed">';
   const items=r.items.slice().reverse();
   if(r.status!=="working"&&t.changes) h+=doneCard(r);
   const nowId=r.status==="working"?(r.items.filter(i=>i.type==="change").slice(-1)[0]||{}).id:null;
