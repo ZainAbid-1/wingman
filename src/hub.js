@@ -39,7 +39,10 @@ function load() {
       p.paused = false;
       p.activity = '';
       p.pending = [];
-      for (const r of p.runs) if (r.status === 'working') r.status = 'done';
+      // A run active in the last 30 minutes survives a hub restart (for example an update mid-run).
+      const recent = Date.now() - (p.lastToolAt || 0) < 30 * 60 * 1000;
+      const last = p.runs[p.runs.length - 1];
+      for (const r of p.runs) if (r.status === 'working' && !(recent && r === last)) r.status = 'done';
     }
   } catch {
     /* first run */
