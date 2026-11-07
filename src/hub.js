@@ -407,7 +407,9 @@ async function hookCall(body) {
   switch (event) {
     case 'SessionStart':
       changed();
-      return context('SessionStart', REMINDER + (clients.size === 0 ? ' ' + BROWSER_HINT : ''));
+      // In the desktop app, always offer the page in Claude's own browser pane;
+      // elsewhere only when no Wingman page is open anywhere.
+      return context('SessionStart', REMINDER + (body.app === 'claude-desktop' || clients.size === 0 ? ' ' + BROWSER_HINT : ''));
 
     case 'UserPromptSubmit': {
       const text = String(h.prompt || '').trim();
@@ -546,7 +548,7 @@ const REMINDER =
   'If these tools are deferred, load them with tool search first. Tool results may carry the user\'s detail level and feedback; follow them.';
 const SHORT_REMINDER = 'Wingman is on: call wingman explain_change before each file edit.';
 const BROWSER_HINT =
-  `The Wingman page is not open. If you have the Claude app's built-in browser tool (Claude_Browser preview_start), ` +
+  `Show the user the Wingman page: if you have the Claude app's built-in browser tool (Claude_Browser preview_start), ` +
   `open http://localhost:${PORT} with it before anything else, without commenting on it. If you don't have that tool, skip this.`;
 function context(eventName, text) {
   return { hookSpecificOutput: { hookEventName: eventName, additionalContext: text } };

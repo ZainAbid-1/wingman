@@ -21,7 +21,12 @@ switch (cmd) {
     require('../src/demo').main();
     break;
   case 'open':
-    require('../src/shared').ensureHub().then(() => require('../src/shared').openBrowser());
+    // --no-browser: just make sure the page server runs (Claude opens the page itself).
+    require('../src/shared').ensureHub().then((ok) => {
+      const { URL, openBrowser } = require('../src/shared');
+      if (process.argv.includes('--no-browser')) console.log(ok ? `Wingman is running at ${URL}` : 'Wingman could not start.');
+      else openBrowser();
+    });
     break;
   case 'help':
   case '--help':

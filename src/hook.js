@@ -16,7 +16,7 @@ async function main(eventArg) {
     if (!event) return process.exit(0);
     if (!(await ensureHub())) return process.exit(0);
     const timeout = event === 'PreToolUse' ? 595000 : 8000;
-    const out = await request('POST', '/api/hook', { event, payload, claude: process.env.CLAUDE_CODE_EXECPATH || '' }, timeout);
+    const out = await request('POST', '/api/hook', { event, payload, claude: process.env.CLAUDE_CODE_EXECPATH || '', app: process.env.CLAUDE_CODE_ENTRYPOINT || '' }, timeout);
     if (out && Object.keys(out).length && !out.error) process.stdout.write(JSON.stringify(out));
   } catch {
     /* stay out of the way */
