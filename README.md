@@ -54,7 +54,7 @@ Claude Code hooks ── real diffs, prompts ───► ┘          ▲      
 ```
 
 - **MCP server** (`wingman`): gives Claude five tools — `start_task`, `explain_change`, `mark_step_done`, `ask_user`, `get_feedback` — plus short instructions on when to use them.
-- **Hooks** (`wingman hook <Event>`): send real diffs from Edit/Write, your prompts, and commands to the page. They cost no tokens.
+- **Hooks** (`wingman hook <Event>`): send real diffs from Edit/Write, your prompts, and commands to the page. In a git repository, files changed by shell commands (scripts, `sed`, and so on) are diffed too. They cost no tokens.
 - **Hub**: one small local server per machine. It starts by itself and stops after 3 idle hours. History is kept in `~/.wingman/state.json`.
 
 ### What each button does

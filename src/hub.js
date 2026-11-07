@@ -8,7 +8,7 @@ const http = require('http');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const { PORT, HOST, VERSION, openBrowser } = require('./shared');
 
 const LEVELS = [
@@ -251,6 +251,121 @@ function mergeDiff(a, b) {
   return { rows, adds: a.adds + b.adds, dels: a.dels + b.dels, truncated: a.truncated + b.truncated };
 }
 
+// Put a diff on the card Claude wrote for this file, extend the last card for it,
+// or add an unexplained card. Returns a one-time nudge for unexplained changes.
+function attachDiff(run, f, d, isNew) {
+  const last = run.items[run.items.length - 1];
+  for (let i = run.items.length - 1; i >= 0; i--) {
+    const c = run.items[i];
+    if (c.type === 'change' && c.file === f && !c.diff) {
+      c.diff = d;
+      return '';
+    }
+  }
+  if (last && last.type === 'change' && last.file === f && last.diff) {
+    last.diff = mergeDiff(last.diff, d);
+    return '';
+  }
+  run.items.push({ id: id('c'), type: 'change', file: f, kind: isNew ? 'new' : 'edit', what: '', why: '', extra: '', step: null, level: state.level, diff: d, thread: [], approved: false, at: now() });
+  if (run.nudged) return '';
+  run.nudged = true;
+  return `Wingman: you changed ${f} without explaining it. The user is watching the Wingman page; call explain_change for it now (file, what, why) and before each further edit. Prefer the Edit/Write tools for file changes so the user sees exact diffs.`;
+}
+
+/* ---------- changes made by shell commands (git repos only) ---------- */
+// Edit/Write report their diffs through hooks; a script that rewrites a file does not.
+// Before a command we note every dirty file and its content; afterwards any file whose
+// content changed is diffed against that note (or against HEAD if it was clean).
+const MAX_SNAP_FILE = 1024 * 1024;
+const snaps = new Map(); // project key -> snapshot taken before the running command (not saved)
+function git(cwd, args, input) {
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', timeout: 4000, windowsHide: true, maxBuffer: 16 * 1024 * 1024, input });
+  return r.status === 0 ? r.stdout : null;
+}
+function dirtyFiles(root) {
+  const out = git(root, ['status', '--porcelain', '-z', '--untracked-files=all']);
+  if (out == null) return null;
+  const files = [];
+  const parts = out.split('\0');
+  for (let i = 0; i < parts.length; i++) {
+    const e = parts[i];
+    if (e.length < 4) continue;
+    files.push(e.slice(3));
+    if (e[0] === 'R' || e[0] === 'C') i++; // rename: next entry is the old path
+  }
+  return files.slice(0, 300);
+}
+function readSmall(abs) {
+  try {
+    const st = fs.statSync(abs);
+    if (!st.isFile() || st.size > MAX_SNAP_FILE) return null;
+    return fs.readFileSync(abs, 'utf8');
+  } catch {
+    return '';
+  }
+}
+function snapshot(cwd) {
+  const root = (git(cwd, ['rev-parse', '--show-toplevel']) || '').trim();
+  if (!root) return null;
+  const files = dirtyFiles(root);
+  if (!files) return null;
+  const content = new Map();
+  for (const f of files) content.set(f, readSmall(path.join(root, f)));
+  return { root, content };
+}
+function unifiedRows(text) {
+  const rows = [];
+  let o = 0;
+  let n = 0;
+  let started = false;
+  for (const line of text.split('\n')) {
+    const m = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+    if (m) {
+      if (started) rows.push({ t: '~' });
+      started = true;
+      o = +m[1];
+      n = +m[2];
+      continue;
+    }
+    if (!started || line.startsWith('\\')) continue;
+    const t = line[0];
+    const s = line.slice(1);
+    if (t === '-') rows.push({ t, n: o++, s });
+    else if (t === '+') rows.push({ t, n: n++, s });
+    else if (t === ' ') {
+      rows.push({ t: ' ', n: n++, s });
+      o++;
+    }
+  }
+  return rows;
+}
+function commandChanges(snap) {
+  const out = [];
+  const now2 = dirtyFiles(snap.root);
+  if (!now2) return out;
+  const files = new Set([...now2, ...snap.content.keys()]);
+  const tmp = path.join(os.tmpdir(), `wingman-old-${process.pid}`);
+  for (const f of files) {
+    const abs = path.join(snap.root, f);
+    const before = snap.content.has(f) ? snap.content.get(f) : git(snap.root, ['show', `HEAD:${f}`]) || '';
+    const after = readSmall(abs);
+    if (before == null || after == null || before === after) continue;
+    fs.writeFileSync(tmp, before);
+    const r = spawnSync('git', ['diff', '--no-index', '--no-color', '-U3', '--', tmp, fs.existsSync(abs) ? abs : os.devNull], { encoding: 'utf8', timeout: 4000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 });
+    const rows = unifiedRows(r.stdout || '');
+    if (!rows.length) continue;
+    const adds = rows.filter((x) => x.t === '+').length;
+    const dels = rows.filter((x) => x.t === '-').length;
+    out.push({ abs, isNew: before === '', diff: { rows: rows.slice(0, MAX_ROWS), adds, dels, truncated: Math.max(0, rows.length - MAX_ROWS) } });
+  }
+  try {
+    fs.unlinkSync(tmp);
+  } catch {
+    /* already gone */
+  }
+  return out.slice(0, 20);
+}
+
 /* ---------- describing activity ---------- */
 function base(f) {
   return f ? path.basename(String(f)) : '';
@@ -473,6 +588,7 @@ async function hookCall(body) {
         const fb = takePending(p);
         return deny(`Before this step, the user left feedback in Wingman. Take it into account, then continue (retry this step only if it still makes sense):\n${fb}`);
       }
+      if (run && (tool === 'Bash' || tool === 'PowerShell')) snaps.set(p.key, snapshot(p.cwd));
       return {};
     }
 
@@ -491,43 +607,22 @@ async function hookCall(body) {
         fst.dels += d.dels;
         fst.read = true;
         if (tool === 'Write' && h.tool_response && h.tool_response.type === 'create') fst.isNew = true;
-        const last = run.items[run.items.length - 1];
-        let card = null;
-        for (let i = run.items.length - 1; i >= 0; i--) {
-          const c = run.items[i];
-          if (c.type === 'change' && c.file === f && !c.diff) {
-            card = c;
-            break;
-          }
-        }
-        if (card) {
-          card.diff = d;
-        } else if (last && last.type === 'change' && last.file === f && last.diff) {
-          last.diff = mergeDiff(last.diff, d);
-        } else {
-          if (!run.nudged) {
-            run.nudged = true;
-            nudge = `Wingman: you changed ${f} without explaining it. The user is watching the Wingman page; call explain_change for it now (file, what, why) and before each further edit.`;
-          }
-          run.items.push({
-            id: id('c'),
-            type: 'change',
-            file: f,
-            kind: fst.isNew ? 'new' : 'edit',
-            what: '',
-            why: '',
-            extra: '',
-            step: null,
-            level: state.level,
-            diff: d,
-            thread: [],
-            approved: false,
-            at: now(),
-          });
-        }
+        nudge = attachDiff(run, f, d, fst.isNew) || nudge;
       } else if (tool === 'Read' && input.file_path) {
         fileState(run, rel(p, input.file_path)).read = true;
       } else if (tool === 'Bash' || tool === 'PowerShell') {
+        const snap = snaps.get(p.key);
+        snaps.delete(p.key);
+        if (snap) {
+          for (const ch of commandChanges(snap)) {
+            const f = rel(p, ch.abs);
+            const fst = fileState(run, f);
+            fst.adds += ch.diff.adds;
+            fst.dels += ch.diff.dels;
+            if (ch.isNew) fst.isNew = true;
+            nudge = attachDiff(run, f, ch.diff, ch.isNew) || nudge;
+          }
+        }
         const resp = h.tool_response || {};
         run.items.push({
           id: id('x'),
@@ -565,6 +660,7 @@ async function hookCall(body) {
 const REMINDER =
   'Wingman is on: the user watches a live page that explains your work as you do it. ' +
   'For multi-step work call the wingman start_task tool first. Before each file edit call wingman explain_change (file, what, why, step). ' +
+  'Prefer the Edit/Write tools for file changes so the user sees exact diffs. ' +
   'If these tools are deferred, load them with tool search first. Tool results may carry the user\'s detail level and feedback; follow them.';
 const SHORT_REMINDER = 'Wingman is on: call wingman explain_change before each file edit.';
 const BROWSER_HINT =
