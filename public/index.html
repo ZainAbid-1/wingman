@@ -42,12 +42,26 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .brand .critter{width:30px;height:20px;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent) 45%,transparent))}
 .live .brand .critter{animation:hop .9s steps(2,jump-none) infinite}
 @keyframes hop{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
-.tabs{display:flex;gap:3px;background:var(--panel);border:1px solid var(--line);padding:3px;border-radius:11px;min-width:0;overflow-x:auto;max-width:100%;flex:0 1 auto;scrollbar-width:none}
-.tab{border:0;background:transparent;padding:6px 11px;border-radius:8px;font-size:13px;font-weight:500;display:flex;align-items:center;gap:7px;color:var(--ink-2);white-space:nowrap}
-.tab.on{background:var(--raise);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2)}
-.tab .sd{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
-.tab .sd.live{background:var(--live);animation:ping 1.6s infinite}
-.tab .sd.wait{background:var(--warn-ink)}
+/* Project switcher */
+.projwrap{position:relative;min-width:0;flex:0 1 auto}
+.btn.proj{max-width:300px;min-width:0}
+.btn.proj .pname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.btn.proj .pmore{font-size:11px;color:var(--accent-ink);background:var(--accent-soft);border-radius:999px;padding:0 7px;white-space:nowrap}
+.btn.proj[aria-expanded="true"] .chv{transform:rotate(180deg)}
+.sd{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
+.sd.live{background:var(--live);animation:ping 1.6s infinite}
+.sd.wait{background:var(--warn-ink)}
+.pop.projpop{left:0;right:auto;width:min(380px,calc(100vw - 32px));padding:10px;animation:none}
+.pq{width:100%;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:9px;padding:7px 10px;font:inherit;font-size:13px;margin-bottom:8px}
+.plist{display:flex;flex-direction:column;gap:2px;max-height:min(60vh,420px);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.tab{border:1px solid transparent;background:transparent;padding:7px 10px;border-radius:9px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 9px;align-items:center;text-align:left;color:var(--ink-2);font:inherit;cursor:pointer;width:100%}
+.tab:hover{background:var(--sunk);color:var(--ink)}
+.tab.on{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 40%,transparent);color:var(--ink)}
+.tab b{font-weight:600;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tab.on b{color:var(--accent-ink)}
+.tab .when2{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.tab .pth{grid-column:2/4;font-family:var(--f-mono);font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:left}
+.plist .none{padding:12px;color:var(--ink-3);font-size:12.5px;text-align:center}
 .spacer{flex:1}
 .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);min-width:0;max-width:340px;flex:0 1 auto}
 .status span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -310,12 +324,11 @@ button.vt:hover{background:var(--sunk);color:var(--ink)}
 
   .step,.ex,.diff,.acts,.thread,.showcode,.pending,.ask .q,.ask .opts{margin-left:0}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .top-in{flex-wrap:wrap}
-  .tabs{order:3;flex-basis:100%}
+  .btn.proj{max-width:150px}
   .status span{display:none}
   #setBtn .lvname,#setBtn .chv{display:none}
   #setBtn{padding:7px 9px}
-  .pop{position:fixed;left:16px;right:16px;top:58px;width:auto}
+  .pop,.pop.projpop{position:fixed;left:16px;right:16px;top:58px;width:auto}
   .status{padding:9px}
   .run-h q{font-size:17px}
   .run-b{margin-left:8px;padding-left:14px}
@@ -330,7 +343,16 @@ button.vt:hover{background:var(--sunk);color:var(--ink)}
 <header class="top" id="top">
   <div class="top-in">
     <div class="brand"><svg class="critter" viewBox="0 0 12 8" aria-hidden="true"><path d="M2 0h8v2h2v2h-2v2H2V4H0V2h2ZM3 1v1h1V1ZM8 1v1h1V1ZM2 6h1v2H2ZM4 6h1v2H4ZM7 6h1v2H7ZM9 6h1v2H9Z"/></svg>Wingman</div>
-    <div class="tabs" id="tabs" role="tablist" aria-label="Projects"></div>
+    <div class="projwrap" id="projwrap" hidden>
+      <button class="btn proj" id="projBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="projPop" title="Switch project">
+        <span class="sd" id="projDot"></span><span class="pname" id="projName"></span><span class="pmore" id="projMore" hidden></span>
+        <svg class="i chv" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="pop projpop" id="projPop" hidden>
+        <input class="pq" id="projQ" type="search" placeholder="Find a project" aria-label="Find a project" autocomplete="off">
+        <div class="plist" id="tabs" role="listbox" aria-label="Projects"></div>
+      </div>
+    </div>
     <div class="spacer"></div>
     <div class="status" id="status" role="status"><i class="dot"></i><span id="statusText">Connecting…</span></div>
     <div class="setwrap">
@@ -458,13 +480,22 @@ function runTotals(r){
 /* ---------- header ---------- */
 function renderTop(){
   const ps=projects(),p=current();
-  setHTML($("tabs"),ps.map(x=>{
+  const dotOf=x=>{const r=x.runs[x.runs.length-1];if(!r||r.status!=="working")return "";return runStatus(x,r)[0]==="work"?"live":"wait";};
+  // Dropdown list: every project, newest activity first, narrowed by the search box.
+  const q=($("projQ").value||"").trim().toLowerCase();
+  const shown=ps.filter(x=>!q||x.name.toLowerCase().includes(q)||String(x.cwd).toLowerCase().includes(q));
+  setHTML($("tabs"),shown.length?shown.map(x=>{
     const r=x.runs[x.runs.length-1];
-    const st=r?runStatus(x,r)[0]:"ok";
-    const dot=r&&r.status==="working"?(st==="work"?"live":"wait"):"";
-    return '<button class="tab'+(x.key===V.sel?' on':'')+'" type="button" role="tab" aria-selected="'+(x.key===V.sel)+'" data-key="'+esc(x.key)+'" title="'+esc(x.cwd)+'"><span class="sd '+dot+'"></span>'+esc(x.name)+'</button>';
-  }).join(""));
-  $("tabs").hidden=ps.length===0;
+    return '<button class="tab'+(x.key===V.sel?' on':'')+'" type="button" role="option" aria-selected="'+(x.key===V.sel)+'" data-key="'+esc(x.key)+'" title="'+esc(x.cwd)+'">'+
+      '<span class="sd '+dotOf(x)+'"></span><b>'+esc(x.name)+'</b><span class="when2">'+(r?ago(r.endedAt||r.startedAt):"")+'</span><span class="pth">'+esc(x.cwd)+'</span></button>';
+  }).join(""):'<div class="none">No project matches “'+esc(q)+'”.</div>');
+  $("projwrap").hidden=ps.length===0;
+  $("projQ").hidden=ps.length<=5;
+  $("projName").textContent=p?p.name:"";
+  $("projDot").className="sd "+(p?dotOf(p):"");
+  // Other projects where Claude is working right now.
+  const others=ps.filter(x=>x!==p&&dotOf(x)).length;
+  $("projMore").hidden=!others;$("projMore").textContent=others?others+" working":"";
   const s=$("status"),t=$("statusText");
   let cls="",txt="";
   if(!V.connected){cls="off";txt="Can't reach Wingman. Is it running?";}
@@ -657,7 +688,7 @@ $("seg").addEventListener("click",e=>{
   post({action:"level",level:l});
 });
 function setMenu(open){$("pop").hidden=!open;$("setBtn").setAttribute("aria-expanded",open);}
-$("setBtn").addEventListener("click",e=>{e.stopPropagation();setMenu($("pop").hidden);});
+$("setBtn").addEventListener("click",e=>{e.stopPropagation();if($("pop").hidden)setProj(false);setMenu($("pop").hidden);});
 document.addEventListener("click",e=>{if(!$("pop").hidden&&!e.target.closest(".setwrap"))setMenu(false);});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("pop").hidden){setMenu(false);$("setBtn").focus();}});
 /* ---------- file viewer ---------- */
@@ -745,10 +776,24 @@ $("rail").addEventListener("click",e=>{
   if(V.focus)V.collapsed[V.focus]=true;
   V.focus=null;render();
 });
+function pickProject(key){
+  V.sel=key;V.pickedAt=Date.now();V.focus=null;try{localStorage.setItem("wingman-project",V.sel);}catch(err){}
+  setProj(false);render();
+}
+function setProj(open){
+  $("projPop").hidden=!open;$("projBtn").setAttribute("aria-expanded",open);
+  if(open){setMenu(false);$("projQ").value="";renderTop();if(!$("projQ").hidden)$("projQ").focus();}
+}
+$("projBtn").addEventListener("click",e=>{e.stopPropagation();setProj($("projPop").hidden);});
+$("projQ").addEventListener("input",()=>renderTop());
+$("projQ").addEventListener("keydown",e=>{
+  if(e.key!=="Enter")return;
+  const first=$("tabs").querySelector(".tab");if(first)pickProject(first.dataset.key);
+});
+document.addEventListener("click",e=>{if(!$("projPop").hidden&&!e.target.closest(".projwrap"))setProj(false);});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("projPop").hidden){setProj(false);$("projBtn").focus();}});
 $("tabs").addEventListener("click",e=>{
-  const t=e.target.closest(".tab");if(!t)return;
-  V.sel=t.dataset.key;V.pickedAt=Date.now();V.focus=null;try{localStorage.setItem("wingman-project",V.sel);}catch(err){}
-  render();
+  const t=e.target.closest(".tab");if(t)pickProject(t.dataset.key);
 });
 $("main").addEventListener("click",e=>{
   const tg=e.target.closest("[data-toggle]");
