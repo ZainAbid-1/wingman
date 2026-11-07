@@ -62,6 +62,7 @@ Claude Code hooks ── real diffs, prompts ───► ┘          ▲      
 | On the page | What reaches Claude |
 |---|---|
 | Pause Claude | The next tool call waits (up to 10 minutes) until you resume. |
+| Click a file (left side) | Opens the whole file with this run's changes highlighted, a strip marking where they are, next/previous change buttons, and a folder tree showing where the file sits in the project. |
 | Not like this | Works like a new prompt about that change. It reaches Claude before its next edit or command (which waits until Claude has read it), and Claude's response shows up as its own run. If Claude has already finished, it goes along with your next message. |
 | Simpler | Claude rewrites that card's explanation in plainer words. |
 | Question cards | Claude waits for your choice. |

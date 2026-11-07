@@ -9,6 +9,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const crypto = require('crypto');
 const { PORT, HOST, VERSION, openBrowser } = require('./shared');
 
 const LEVELS = [
@@ -123,7 +124,7 @@ function newRun(p, prompt, source) {
     tokens: 0,
   };
   p.runs.push(r);
-  if (p.runs.length > MAX_RUNS) p.runs.splice(0, p.runs.length - MAX_RUNS);
+  if (p.runs.length > MAX_RUNS) for (const old of p.runs.splice(0, p.runs.length - MAX_RUNS)) dropOriginals(old);
   maybeOpen();
   return r;
 }
@@ -276,6 +277,105 @@ function attachDiff(run, f, d, isNew) {
   return `Wingman: you changed ${f} without explaining it. The user is watching the Wingman page; call explain_change for it now (file, what, why) and before each further edit. Prefer the Edit/Write tools for file changes so the user sees exact diffs.`;
 }
 
+/* ---------- each file's version from before the run ---------- */
+// The file viewer diffs the whole file against how it was before Claude's first change
+// in that run. Copies live in ~/.wingman/orig/<run id>/ and go when the run is dropped.
+const ORIG_DIR = path.join(STORE_DIR, 'orig');
+const origPath = (run, f) => path.join(ORIG_DIR, run.id, crypto.createHash('sha1').update(f).digest('hex'));
+function keepOriginal(run, f, content) {
+  if (!run || !f || content == null) return;
+  run.orig = run.orig || {};
+  if (run.orig[f]) return;
+  try {
+    fs.mkdirSync(path.join(ORIG_DIR, run.id), { recursive: true });
+    fs.writeFileSync(origPath(run, f), content);
+    run.orig[f] = true;
+  } catch {
+    /* viewer falls back to the current file */
+  }
+}
+function dropOriginals(run) {
+  try {
+    fs.rmSync(path.join(ORIG_DIR, run.id), { recursive: true, force: true });
+  } catch {
+    /* nothing kept */
+  }
+}
+
+// Where the file sits in the project: every folder from the root down to it, like a file
+// explorer with only that path opened. Files outside the project get no tree.
+const TREE_SKIP = new Set(['.git', 'node_modules']);
+function locationTree(p, run, f) {
+  const relp = path.relative(p.cwd, path.resolve(p.cwd, f));
+  if (!relp || relp.startsWith('..') || path.isAbsolute(relp)) return null;
+  const parts = relp.split(path.sep);
+  const levels = [];
+  let dir = p.cwd;
+  for (const part of parts) {
+    let entries = [];
+    try {
+      entries = fs
+        .readdirSync(dir, { withFileTypes: true })
+        .filter((e) => !TREE_SKIP.has(e.name))
+        .map((e) => ({ name: e.name, dir: e.isDirectory() }))
+        .sort((a, b) => (a.dir !== b.dir ? (a.dir ? -1 : 1) : a.name.localeCompare(b.name)));
+    } catch {
+      /* unreadable folder */
+    }
+    // Keep the open entry even when the list is cut short.
+    let shown = entries.slice(0, 60);
+    if (!shown.some((e) => e.name === part)) shown = shown.slice(0, 59).concat(entries.filter((e) => e.name === part));
+    levels.push({ open: part, entries: shown, more: Math.max(0, entries.length - shown.length) });
+    dir = path.join(dir, part);
+  }
+  const changed = Object.entries(run.files).filter(([, s]) => s.adds || s.dels).map(([k]) => k);
+  return { root: p.name, levels, changed };
+}
+
+// Whole file for the viewer: every line, with this run's additions and removals marked.
+function fileView(key, runId, f) {
+  const out = fileViewRows(key, runId, f);
+  if (!out.error) {
+    const p = state.projects[key];
+    out.tree = locationTree(p, p.runs.find((r) => r.id === runId), f);
+  }
+  return out;
+}
+function fileViewRows(key, runId, f) {
+  const p = state.projects[key];
+  const run = p && p.runs.find((r) => r.id === runId);
+  if (!run || !f || !run.files[f]) return { error: 'Unknown file' };
+  const abs = path.resolve(p.cwd, f);
+  const now1 = readSmall(abs);
+  if (now1 == null) return { error: 'This file is too large to show here.' };
+  const exists = fs.existsSync(abs);
+  const plain = () => (now1 ? now1.replace(/\n$/, '').split('\n') : []).map((s, i) => ({ t: ' ', n: i + 1, s }));
+  let base = null;
+  if (run.orig && run.orig[f]) {
+    try {
+      base = fs.readFileSync(origPath(run, f), 'utf8');
+    } catch {
+      base = null;
+    }
+  }
+  if (base == null) return { file: f, rows: plain(), hasBase: false, exists };
+  if (base === now1) return { file: f, rows: plain(), hasBase: true, exists };
+  const tmp = path.join(os.tmpdir(), `wingman-view-${process.pid}-${seq++}`);
+  try {
+    fs.writeFileSync(tmp, base);
+    const r = spawnSync('git', ['diff', '--no-index', '--no-color', '-U1000000', '--', tmp, exists ? abs : os.devNull], { encoding: 'utf8', timeout: 6000, windowsHide: true, maxBuffer: 32 * 1024 * 1024 });
+    const rows = unifiedRows(r.stdout || '');
+    if (!rows.length) return { file: f, rows: plain(), hasBase: false, exists };
+    return { file: f, rows: rows.slice(0, 20000), hasBase: true, exists };
+  } finally {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* gone */
+    }
+  }
+}
+
 /* ---------- changes made by shell commands (git repos only) ---------- */
 // Edit/Write report their diffs through hooks; a script that rewrites a file does not.
 // Before a command we note every dirty file and its content; afterwards any file whose
@@ -360,7 +460,7 @@ function commandChanges(snap) {
     if (!rows.length) continue;
     const adds = rows.filter((x) => x.t === '+').length;
     const dels = rows.filter((x) => x.t === '-').length;
-    out.push({ abs, isNew: before === '', diff: { rows: rows.slice(0, MAX_ROWS), adds, dels, truncated: Math.max(0, rows.length - MAX_ROWS) } });
+    out.push({ abs, before, isNew: before === '', diff: { rows: rows.slice(0, MAX_ROWS), adds, dels, truncated: Math.max(0, rows.length - MAX_ROWS) } });
   }
   try {
     fs.unlinkSync(tmp);
@@ -585,6 +685,7 @@ async function hookCall(body) {
         if (f) {
           for (const x of Object.values(run.files)) x.active = false;
           fileState(run, f).active = true;
+          keepOriginal(run, f, readSmall(path.resolve(p.cwd, (h.tool_input || {}).file_path || (h.tool_input || {}).notebook_path)));
         }
       }
       changed();
@@ -627,6 +728,7 @@ async function hookCall(body) {
         if (snap) {
           for (const ch of commandChanges(snap)) {
             const f = rel(p, ch.abs);
+            keepOriginal(run, f, ch.before);
             const fst = fileState(run, f);
             fst.adds += ch.diff.adds;
             fst.dels += ch.diff.dels;
@@ -842,6 +944,12 @@ function main() {
       }
       if (req.method === 'GET' && url.pathname === '/api/ping') return send(res, 200, { ok: true, version: VERSION });
       if (req.method === 'GET' && url.pathname === '/api/state') return send(res, 200, publicState());
+      if (req.method === 'GET' && url.pathname === '/api/file') {
+        // File contents only for this machine's page (guards against DNS rebinding).
+        if (!/^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || '')) return send(res, 403, { error: 'Forbidden' });
+        const q = url.searchParams;
+        return send(res, 200, fileView(q.get('key'), q.get('run'), q.get('file')));
+      }
       if (req.method === 'GET' && url.pathname === '/api/events') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
         res.write(`data: ${JSON.stringify(publicState())}\n\n`);
