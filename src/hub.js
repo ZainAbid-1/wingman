@@ -254,7 +254,8 @@ function mergeDiff(a, b) {
 // Put a diff on the card Claude wrote for this file, extend the last card for it,
 // or add an unexplained card. Returns a one-time nudge for unexplained changes.
 function attachDiff(run, f, d, isNew) {
-  const last = run.items[run.items.length - 1];
+  // The most recent change card, looking past commands run in between.
+  const last = run.items.slice().reverse().find((x) => x.type !== 'cmd');
   for (let i = run.items.length - 1; i >= 0; i--) {
     const c = run.items[i];
     if (c.type === 'change' && c.file === f && !c.diff) {
@@ -456,6 +457,12 @@ async function mcpCall(body) {
         changed();
         return reply(p, run, a, 'Updated.');
       }
+      // The user switched level after this Claude session last heard it: this card was
+      // written in the old style. Don't show it; reply() tells Claude the new level.
+      const sess = a.__session;
+      if (levelSent.has(sess) && levelSent.get(sess) !== state.level && (a.what || a.why)) {
+        return reply(p, null, a, 'Not shown: the user just switched the explanation level. Call explain_change again for this same change, with what/why written at the new level.');
+      }
       const run = runFor(p);
       const file = rel(p, a.file);
       const card = {
@@ -558,7 +565,8 @@ async function hookCall(body) {
       changed();
       // Feedback left after Claude finished its last turn reaches it with this message.
       const fb = takePending(p, true);
-      const parts = [SHORT_REMINDER];
+      const lv = LEVELS[state.level];
+      const parts = [`${SHORT_REMINDER} Explanation level: "${lv.name}" (${lv.guide}).`];
       if (clients.size === 0) parts.push(BROWSER_HINT);
       if (fb) parts.push(`Feedback the user left in Wingman after your last turn (handle it too):\n${fb}`);
       return context('UserPromptSubmit', parts.join('\n'));
