@@ -332,6 +332,74 @@ function locationTree(p, run, f) {
   return { root: p.name, levels, changed };
 }
 
+// For runs without a saved original: find each recorded hunk in the current file and mark
+// it there. Best effort: a hunk that later edits changed beyond recognition is skipped.
+function rebuildRows(text, diffs) {
+  const lines = text.replace(/\r?\n$/, '').split(/\r?\n/);
+  const norm = (s) => String(s).replace(/\r$/, '');
+  const added = new Set();
+  const removedBefore = new Map(); // line index -> removed lines shown just above it
+  const find = (seq) => {
+    if (!seq.length) return -1;
+    for (let i = 0; i + seq.length <= lines.length; i++) {
+      let ok = true;
+      for (let j = 0; j < seq.length && ok; j++) ok = lines[i + j] === norm(seq[j]);
+      if (ok) return i;
+    }
+    return -1;
+  };
+  let found = 0;
+  for (const d of diffs) {
+    // Split into hunks at "~" separators and at jumps in line numbers.
+    const hunks = [];
+    let cur = [];
+    for (const r of d.rows) {
+      if (r.t === '~') {
+        if (cur.length) hunks.push(cur);
+        cur = [];
+      } else cur.push(r);
+    }
+    if (cur.length) hunks.push(cur);
+    for (const h0 of hunks) {
+      // A whole-file Write ends with "\n", which shows up as one extra empty line.
+      const h = h0.slice();
+      while (h.length > 1 && h[h.length - 1].t !== '-' && h[h.length - 1].s === '') h.pop();
+      const kept = h.filter((r) => r.t !== '-');
+      if (!h.some((r) => r.t === '+' || r.t === '-')) continue;
+      let at = find(kept.map((r) => r.s));
+      let rows = h;
+      if (at < 0) {
+        // Context may have changed since; fall back to the added lines alone.
+        const plus = h.filter((r) => r.t === '+');
+        at = find(plus.map((r) => r.s));
+        if (at < 0) continue;
+        rows = h.filter((r) => r.t !== ' ');
+      }
+      found++;
+      let i = at;
+      let pendingDel = [];
+      for (const r of rows) {
+        if (r.t === '-') pendingDel.push(r.s);
+        else {
+          if (pendingDel.length) removedBefore.set(i, (removedBefore.get(i) || []).concat(pendingDel));
+          pendingDel = [];
+          if (r.t === '+') added.add(i);
+          i++;
+        }
+      }
+      if (pendingDel.length) removedBefore.set(i, (removedBefore.get(i) || []).concat(pendingDel));
+    }
+  }
+  if (!found) return null;
+  const out = [];
+  lines.forEach((s, i) => {
+    for (const del of removedBefore.get(i) || []) out.push({ t: '-', s: del });
+    out.push({ t: added.has(i) ? '+' : ' ', n: i + 1, s });
+  });
+  for (const del of removedBefore.get(lines.length) || []) out.push({ t: '-', s: del });
+  return out.slice(0, 20000);
+}
+
 // Whole file for the viewer: every line, with this run's additions and removals marked.
 function fileView(key, runId, f) {
   const out = fileViewRows(key, runId, f);
@@ -358,7 +426,12 @@ function fileViewRows(key, runId, f) {
       base = null;
     }
   }
-  if (base == null) return { file: f, rows: plain(), hasBase: false, exists };
+  if (base == null) {
+    const diffs = run.items.filter((c) => c.type === 'change' && c.file === f && c.diff).map((c) => c.diff);
+    const rebuilt = diffs.length && now1 ? rebuildRows(now1, diffs) : null;
+    if (rebuilt) return { file: f, rows: rebuilt, hasBase: true, approx: true, exists };
+    return { file: f, rows: plain(), hasBase: false, exists };
+  }
   if (base === now1) return { file: f, rows: plain(), hasBase: true, exists };
   const tmp = path.join(os.tmpdir(), `wingman-view-${process.pid}-${seq++}`);
   try {
