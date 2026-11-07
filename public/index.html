@@ -159,6 +159,8 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .ex .why b{font-weight:600;color:var(--accent-ink)}
 .ex .x{color:var(--ink-2);font-size:13px;padding:8px 10px;background:var(--sunk);border-radius:9px}
 .ex .none{color:var(--ink-3);font-style:italic}
+.lvchip{font-size:11px;font-weight:500;padding:1px 8px;border-radius:999px;border:1px solid var(--line-2);color:var(--ink-3);white-space:nowrap}
+.lvchip.off{border-style:dashed}
 .lvnote{font-size:11.5px;color:var(--ink-3)}
 .term{border-bottom:1.5px dotted var(--accent);cursor:help;position:relative;color:var(--ink)}
 .term:hover::after,.term:focus::after{content:attr(data-def);position:absolute;left:0;top:calc(100% + 8px);width:min(260px,70vw);background:var(--ink);color:var(--bg);font-size:12.5px;font-weight:400;line-height:1.45;padding:9px 11px;border-radius:9px;z-index:4;white-space:normal}
@@ -474,20 +476,26 @@ function diffHTML(c){
   if(d.truncated) rows+='<tr class="gap"><td colspan="3">'+d.truncated+' more lines not shown</td></tr>';
   return '<div class="diff"><div class="diff-h"><span>'+esc(c.file)+'</span><span><span class="a">+'+d.adds+'</span> <span class="d">−'+d.dels+'</span></span></div><div class="diff-scroll"><table>'+rows+'</table></div></div>';
 }
-function cardHead(icon,kindCls,title,chip,at,isNow){
-  return '<div class="ch"><span class="ico">'+ic(icon)+'</span>'+title+(chip?'<span class="chip">'+chip+'</span>':"")+'<span class="when">'+(isNow?'<span class="nowtag">Now</span>':"")+'<span>'+ago(at)+'</span></span></div>';
+function cardHead(icon,kindCls,title,chip,at,isNow,extra){
+  return '<div class="ch"><span class="ico">'+ic(icon)+'</span>'+title+(chip?'<span class="chip">'+chip+'</span>':"")+(extra||"")+'<span class="when">'+(isNow?'<span class="nowtag">Now</span>':"")+'<span>'+ago(at)+'</span></span></div>';
+}
+// Every explained card says which level it is written at.
+function lvChip(c){
+  if(!c.what||c.level==null||!V.state.levels) return "";
+  const name=V.state.levels[c.level]||"";
+  const off=c.level!==V.state.level;
+  return '<span class="lvchip'+(off?' off':'')+'" title="'+(off?'Written at a different level than your current setting':'Written at your current level')+'">'+esc(name)+(c.simplified?' · simplified':'')+'</span>';
 }
 function changeCard(p,r,c,isNow){
   const lv=V.state.level;
   const k=KIND[c.kind]||KIND.edit;
-  let h=cardHead(k[0],"",c.file?'<span class="path">'+splitPath(c.file)+'</span>':'<span class="title">Change</span>',k[1],c.at,isNow);
+  let h=cardHead(k[0],"",c.file?'<span class="path">'+splitPath(c.file)+'</span>':'<span class="title">Change</span>',k[1],c.at,isNow,lvChip(c));
   if(c.step&&r.steps[c.step-1]) h+='<p class="step">Step '+c.step+' · '+esc(r.steps[c.step-1])+'</p>';
   h+='<div class="ex">';
   if(c.what){
     h+='<p class="lead">'+fmt(c.what)+'</p>';
     if(c.why) h+='<p class="why"><b>Why:</b> '+fmt(c.why)+'</p>';
     if(c.extra) h+='<p class="x">'+fmt(c.extra)+'</p>';
-    if(c.level!==lv&&V.state.levels) h+='<span class="lvnote">Written at '+esc(V.state.levels[c.level]||"")+' level</span>';
   } else h+='<p class="none">Claude made this change without explaining it.</p>';
   if(c.wantSimpler) h+='<span class="lvnote">Asked Claude for a simpler version. It updates at Claude\'s next step.</span>';
   h+='</div>';

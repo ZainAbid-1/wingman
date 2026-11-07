@@ -330,8 +330,13 @@ async function mcpCall(body) {
         if (a.why !== undefined) card.why = String(a.why || '');
         if (a.extra !== undefined) card.extra = String(a.extra || '');
         if (a.what || a.why) {
-          card.level = state.level;
+          // A "Simpler" rewrite is written at the level below the card's old one.
+          if (card.wantSimpler && card.simplerTo != null) {
+            card.level = card.simplerTo;
+            card.simplified = true;
+          } else card.level = state.level;
           card.wantSimpler = false;
+          card.simplerTo = null;
         }
         changed();
         return reply(p, run, a, 'Updated.');
@@ -606,7 +611,9 @@ function uiCall(b) {
       }
       if (b.kind === 'simpler') {
         card.wantSimpler = true;
-        queue(p, `The user wants ${where} explained more simply. Call explain_change with card_id "${card.id}" and a plainer what/why.`);
+        card.simplerTo = Math.max(0, (card.level == null ? state.level : card.level) - 1);
+        const to = LEVELS[card.simplerTo];
+        queue(p, `The user wants ${where} explained more simply. Call explain_change with card_id "${card.id}" and a new what/why written at the "${to.name}" level: ${to.guide}.`);
         break;
       }
       const text = String(b.text || '').trim() || (b.kind === 'why' ? 'Why did you do it this way?' : 'Not like this.');
