@@ -325,7 +325,19 @@ button.vt:hover{background:var(--sunk);color:var(--ink)}
 
 @media (max-width:860px){
   .wrap{grid-template-columns:minmax(0,1fr)}
-  .rail{position:static;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));max-height:none;overflow:visible;padding-right:0}
+  /* Rail above the feed: a one-line "Showing" header, then Plan, Files and Cost in one row. */
+  .rail{position:static;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-height:none;overflow:visible;padding-right:0;margin-bottom:6px}
+  .railfor{grid-column:1/-1;flex-direction:row;align-items:baseline;gap:10px;padding:0 2px;min-width:0}
+  .railfor b{-webkit-line-clamp:1;font-size:15px;min-width:0}
+  .railfor .back{margin:0 0 0 auto;flex:none}
+  .rail .box{padding:12px;min-width:0}
+  .rb-plan .plan,.rb-files .tree{max-height:168px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+  .rb-cost .muted{display:none}
+  .rb-cost .cost-n{font-size:26px}
+}
+@media (max-width:600px){
+  .rail{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .rb-plan{grid-column:1/-1}
 }
 @media (max-width:520px){
   .viewer{padding:0}
@@ -557,9 +569,9 @@ function renderRail(){
   const isLatest=r===p.runs[p.runs.length-1];
   const showing='<div class="railfor"><span class="lbl">Showing</span><b>'+(isLatest?"Latest run":esc(r.prompt||r.goal||"Untitled run"))+'</b>'+
     (isLatest?"":'<button type="button" class="back" data-back="1">'+ic("x")+'Back to latest</button>')+'</div>';
-  setHTML($("rail"),showing+'<section class="box">'+plan+'</section>'+
-    '<section class="box"><p class="eyebrow"><span>Files</span><span>'+changed+' changed</span></p>'+(tree?'<div class="tree">'+tree+'</div>':'<p class="muted">No files touched yet.</p>')+'</section>'+
-    '<section class="box"><p class="eyebrow"><span>Explanation cost</span></p><div class="cost-n">≈ '+r.tokens.toLocaleString()+'<small>tokens</small></div><p class="muted">Estimated tokens Claude spent explaining its work. Diffs come from hooks and cost nothing.</p></section>');
+  setHTML($("rail"),showing+'<section class="box rb-plan">'+plan+'</section>'+
+    '<section class="box rb-files"><p class="eyebrow"><span>Files</span><span>'+changed+' changed</span></p>'+(tree?'<div class="tree">'+tree+'</div>':'<p class="muted">No files touched yet.</p>')+'</section>'+
+    '<section class="box rb-cost"><p class="eyebrow"><span>Explanation cost</span></p><div class="cost-n">≈ '+r.tokens.toLocaleString()+'<small>tokens</small></div><p class="muted">Estimated tokens Claude spent explaining its work. Diffs come from hooks and cost nothing.</p></section>');
 }
 
 /* ---------- cards ---------- */
