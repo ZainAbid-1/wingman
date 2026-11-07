@@ -217,8 +217,11 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .msg .bub{color:var(--ink-2);min-width:0;overflow-wrap:anywhere}
 .msg .bub em{display:block;font-style:normal;font-size:11.5px;color:var(--ink-3);margin-top:2px}
 .msg .bub em.ok{color:var(--accent-ink)}
-.reply{display:flex;gap:6px}
-.reply input{flex:1;min-width:0;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:9px;padding:7px 10px;font:inherit;font-size:13px}
+.reply{display:flex;gap:6px;align-items:flex-end}
+/* Grows taller as you type (field-sizing where supported, autosize() otherwise), then scrolls. */
+.reply textarea{flex:1;min-width:0;border:1px solid var(--line-2);background:var(--bg);color:var(--ink);border-radius:9px;padding:7px 10px;font:inherit;font-size:13px;line-height:1.5;resize:none;field-sizing:content;min-height:36px;max-height:180px;overflow-y:auto}
+.reply .hint{flex-basis:100%;font-size:11px;color:var(--ink-3);margin:2px 0 0 2px}
+.reply{flex-wrap:wrap;width:100%;flex:1 1 100%}
 .typing{display:inline-flex;gap:3px}
 .typing i{width:5px;height:5px;border-radius:50%;background:var(--ink-3);animation:blink 1s infinite}
 .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
@@ -595,7 +598,7 @@ function changeCard(p,r,c,isNow){
     :'<div class="msg u"><span class="av">You</span><span class="bub">'+esc(m.text)+'<em class="'+(m.delivered?"ok":"")+'">'+(m.delivered?(m.kind==="no"?"Sent to Claude as a new prompt":"Delivered to Claude"):m.answering?"Claude is answering":r.status==="working"?"Waiting for Claude's next step":"Claude has finished. It gets this with your next message in Claude Code")+'</em></span></div>').join("");
   const last=c.thread[c.thread.length-1];
   if(last&&last.from==="user"&&((last.delivered&&r.status==="working")||last.answering)) th+='<div class="msg c"><span class="av">'+CRIT+'</span><span class="bub"><span class="typing"><i></i><i></i><i></i></span></span></div>';
-  if(V.replyOpen[c.id]) th+='<form class="reply" data-id="'+c.id+'"><input id="in-'+c.id+'" placeholder="What should Claude do instead?" aria-label="Tell Claude what to change" value="'+esc(V.drafts[c.id]||"")+'"><button class="btn solid" type="submit">'+ic("send")+'Send</button></form>';
+  if(V.replyOpen[c.id]) th+='<form class="reply" data-id="'+c.id+'"><textarea id="in-'+c.id+'" rows="1" placeholder="What should Claude do instead?" aria-label="Tell Claude what to change">'+esc(V.drafts[c.id]||"")+'</textarea><button class="btn solid" type="submit">'+ic("send")+'Send</button><span class="hint">Enter to send · Shift+Enter for a new line</span></form>';
   h+='<div class="thread">'+th+'</div>';
   return '<article class="card k-'+esc(c.kind)+(isNow?" now":"")+'" data-cid="'+c.id+'">'+h+'</article>';
 }
@@ -813,11 +816,17 @@ $("main").addEventListener("click",e=>{
   b.disabled=true;
   post({action:"feedback",key:p.key,cardId:id,kind:act});
 });
-$("main").addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("in-"))V.drafts[e.target.id.slice(3)]=e.target.value;});
+// Fallback for browsers without field-sizing: set the height from the content.
+function autosize(t){if(CSS.supports&&CSS.supports("field-sizing","content"))return;t.style.height="auto";t.style.height=Math.min(t.scrollHeight+2,180)+"px";}
+$("main").addEventListener("input",e=>{if(e.target.id&&e.target.id.startsWith("in-")){V.drafts[e.target.id.slice(3)]=e.target.value;autosize(e.target);}});
+$("main").addEventListener("keydown",e=>{
+  if(e.key!=="Enter"||e.shiftKey||e.isComposing||!e.target.matches(".reply textarea"))return;
+  e.preventDefault();e.target.form.requestSubmit();
+});
 $("main").addEventListener("submit",e=>{
   const f=e.target.closest(".reply");if(!f)return;
   e.preventDefault();
-  const id=f.dataset.id,inp=f.querySelector("input"),v=inp.value.trim();
+  const id=f.dataset.id,inp=f.querySelector("textarea"),v=inp.value.trim();
   if(!v){inp.placeholder="Type what you'd like changed first";inp.focus();return;}
   V.replyOpen[id]=false;V.drafts[id]="";
   post({action:"feedback",key:current().key,cardId:id,kind:"no",text:v});
@@ -837,7 +846,7 @@ function connect(){
   es.onmessage=ev=>{V.connected=true;V.state=JSON.parse(ev.data);followActive();render();};
   es.onerror=()=>{V.connected=false;renderTop();};
 }
-setInterval(()=>{if(V.state&&!document.querySelector(".reply input:focus"))render();},5000);
+setInterval(()=>{if(V.state&&!document.querySelector(".reply textarea:focus"))render();},5000);
 render();
 connect();
 </script>
