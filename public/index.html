@@ -87,15 +87,6 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .cost-n{font-family:var(--f-display);font-size:32px;font-weight:500;color:var(--accent-ink);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .cost-n small{font-family:var(--f-body);font-size:13px;color:var(--ink-3);font-weight:400;margin-left:4px}
 
-.dial{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 18px;align-items:center;margin-bottom:18px}
-.dial h2{font-family:var(--f-display);font-weight:500;font-size:20px;margin:0}
-.dial p{margin:0;font-size:12px;color:var(--ink-3);max-width:34ch}
-.seg{display:grid;grid-template-columns:repeat(4,1fr);background:var(--sunk);border-radius:10px;padding:3px;position:relative;grid-row:span 2}
-.seg button{border:0;background:transparent;padding:8px 6px;border-radius:8px;font-size:13px;font-weight:500;color:var(--ink-2);position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.2}
-.seg button small{font-size:10.5px;font-weight:400;color:var(--ink-3)}
-.seg button.on{color:var(--accent-ink)}
-.seg .thumb{position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px)/4);background:var(--accent-soft);border-radius:8px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 45%,transparent);transition:transform .28s cubic-bezier(.3,.7,.2,1)}
-.ends{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);grid-column:2}
 
 .runs{display:flex;flex-direction:column;gap:14px}
 .run{display:flex;flex-direction:column;gap:12px}
@@ -236,16 +227,30 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .welcome pre{background:var(--sunk);border-radius:10px;padding:12px 14px;font-family:var(--f-mono);font-size:12.5px;overflow-x:auto;margin:0 0 12px}
 .empty{text-align:center;padding:36px 20px;color:var(--ink-3);border:1px dashed var(--line-2);border-radius:16px}
 
+/* Settings menu */
+.setwrap{position:relative}
+.btn .lvname{color:var(--accent-ink)}
+.btn .chv{width:14px;height:14px;transition:transform .2s}
+.btn[aria-expanded="true"] .chv{transform:rotate(180deg)}
+.pop{position:absolute;right:0;top:calc(100% + 8px);width:min(320px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line-2);border-radius:14px;padding:16px;box-shadow:0 24px 60px -20px rgba(0,0,0,.85);z-index:10;animation:enter .2s ease-out}
+.pop h2{font-family:var(--f-display);font-weight:500;font-size:19px;margin:0}
+.pop .muted{margin-top:4px}
+.lv{display:flex;flex-direction:column;gap:4px;margin:12px 0 0}
+.lv button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;border:1px solid transparent;background:transparent;border-radius:10px;padding:8px 11px;gap:1px}
+.lv button:hover{background:var(--sunk)}
+.lv button.on{background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.lv b{font-weight:500;font-size:13.5px}
+.lv button.on b{color:var(--accent-ink)}
+.lv small{font-size:12px;color:var(--ink-3)}
+.pop .foot{margin:12px 0 0;padding-top:10px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
+
 @media (max-width:860px){
   .wrap{grid-template-columns:minmax(0,1fr)}
   .rail{position:static;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-  .dial{grid-template-columns:minmax(0,1fr)}
-  .seg{grid-row:auto}.ends{grid-column:1}
 }
 @media (max-width:520px){
   .step,.ex,.diff,.acts,.thread,.showcode,.pending,.ask .q,.ask .opts{margin-left:0}
   .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .seg button small{display:none}
   .tabs{order:3;flex-basis:100%}
   .spacer{display:none}
   .run-h q{font-size:17px}
@@ -264,6 +269,24 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
     <div class="tabs" id="tabs" role="tablist" aria-label="Projects"></div>
     <div class="spacer"></div>
     <div class="status" id="status" role="status"><i class="dot"></i><span id="statusText">Connecting…</span></div>
+    <div class="setwrap">
+      <button class="btn" id="setBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="pop" title="Explanation settings">
+        <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>
+        <span class="lvname" id="lvName">Big picture</span>
+        <svg class="i chv" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="pop" id="pop" hidden>
+        <h2>Explain changes as</h2>
+        <p class="muted">Claude writes new cards at this level.</p>
+        <div class="lv" id="seg" role="radiogroup" aria-label="Explanation detail">
+          <button type="button" role="radio" data-l="0"><b>Big picture</b><small>Plain words, no code</small></button>
+          <button type="button" role="radio" data-l="1"><b>Walkthrough</b><small>Names files and explains terms</small></button>
+          <button type="button" role="radio" data-l="2"><b>Technical</b><small>Concise, for developers</small></button>
+          <button type="button" role="radio" data-l="3"><b>Terse</b><small>One line per change</small></button>
+        </div>
+        <p class="foot">Use Simpler on a card to rewrite just that one.</p>
+      </div>
+    </div>
     <button class="btn" id="pauseBtn" type="button" disabled></button>
   </div>
 </header>
@@ -271,20 +294,6 @@ svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke
 <main class="wrap">
   <aside class="rail" id="rail"></aside>
   <section>
-    <div class="dial">
-      <div>
-        <h2>Explain changes as</h2>
-        <p>Claude writes new cards at this level. Use Simpler on a card to rewrite just that one.</p>
-      </div>
-      <div class="seg" id="seg" role="radiogroup" aria-label="Explanation detail">
-        <span class="thumb" id="thumb"></span>
-        <button type="button" role="radio" data-l="0">Big picture<small>plain words</small></button>
-        <button type="button" role="radio" data-l="1">Walkthrough<small>code + terms</small></button>
-        <button type="button" role="radio" data-l="2">Technical<small>concise</small></button>
-        <button type="button" role="radio" data-l="3">Terse<small>one line</small></button>
-      </div>
-      <div class="ends"><span>Plain English</span><span>Code only</span></div>
-    </div>
     <div id="main"></div>
   </section>
 </main>
@@ -551,7 +560,7 @@ function renderMain(){
 function renderDial(){
   const l=V.state?V.state.level:0;
   document.querySelectorAll("#seg button").forEach(b=>{const on=+b.dataset.l===l;b.classList.toggle("on",on);b.setAttribute("aria-checked",on);});
-  $("thumb").style.transform="translateX("+(l*100)+"%)";
+  const n=["Big picture","Walkthrough","Technical","Terse"][l];if(n)$("lvName").textContent=n;
 }
 
 function render(){
@@ -575,6 +584,10 @@ $("seg").addEventListener("click",e=>{
   if(V.state){V.state.level=l;renderDial();}
   post({action:"level",level:l});
 });
+function setMenu(open){$("pop").hidden=!open;$("setBtn").setAttribute("aria-expanded",open);}
+$("setBtn").addEventListener("click",e=>{e.stopPropagation();setMenu($("pop").hidden);});
+document.addEventListener("click",e=>{if(!$("pop").hidden&&!e.target.closest(".setwrap"))setMenu(false);});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("pop").hidden){setMenu(false);$("setBtn").focus();}});
 $("tabs").addEventListener("click",e=>{
   const t=e.target.closest(".tab");if(!t)return;
   V.sel=t.dataset.key;V.pickedAt=Date.now();try{localStorage.setItem("wingman-project",V.sel);}catch(err){}
