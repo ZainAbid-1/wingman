@@ -4,11 +4,39 @@ A live page that explains what Claude is changing in your code, and why, while i
 
 - Works on any project and any language
 - No API key, no account, no dependencies (Node 18+)
-- Everything stays on your machine (`http://localhost:4545`)
+- The page and its history stay on your machine (`http://localhost:4545`). The explanations themselves are written by Claude, so they go through Claude like the rest of its work.
+
+![The Wingman page: the plan and changed files on the left, and the run's summary and explained changes on the right](docs/images/interface.jpg)
+
+## What it looks like
+
+These screenshots are from a real run: Claude replacing a music-quiz game's "most wins" leaderboard with a fair Elo rating.
+
+**Every change is explained as a story:** what was wrong, why it matters, and how the change fixes it, with the code right under it.
+
+<img src="docs/images/story-card.jpg" alt="An explained change for supabase/elo.sql: what the new migration does, why the old ranking was unfair, and the code" width="640">
+
+**Click any changed file** to see the whole file with the changes highlighted, and where it sits in your project.
+
+<img src="docs/images/file-viewer.jpg" alt="The file viewer showing supabase/elo.sql with its added lines in green and the project's folder tree" width="640">
+
+**Disagree? Hit "Not like this"** and type what you want instead. Claude reads it before its next edit.
+
+<img src="docs/images/not-like-this.jpg" alt="A change card with the Not like this box open and a note typed in" width="640">
+
+**Pick how much detail you want:** plain words, or technical with the file and function names.
+
+<img src="docs/images/levels.jpg" alt="The Explain changes as menu with Big picture and Technical" width="360">
+
+**When Claude finishes,** one summary shows what changed and where. Each file opens in the viewer.
+
+<img src="docs/images/finished.jpg" alt="The Finished summary: 7 files changed, +629 −16, 6 of 6 plan steps, with a chip for each file" width="640">
 
 ## Install
 
-Wingman is a Claude Code plugin. In Claude Code, run:
+**In the Claude desktop app:** Settings → Customize → Plugins → **+ Add** → Add marketplace → enter `ZainAbid-1/wingman` → Sync, then install **Wingman** and start a new session.
+
+**In Claude Code in a terminal**, run:
 
 ```
 /plugin install wingman --marketplace ZainAbid-1/wingman
